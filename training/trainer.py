@@ -240,12 +240,13 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     model_params_name = os.path.split(params.model_params.model_params_path)[1]
     config_name = os.path.split(params.params_path)[1]
     _, model_name = os.path.split(model_pathname)
-    prefix = "{}, {}, {}".format(model_params_name, config_name, model_name)
-    export_eval_stats("experiment_results.txt", prefix, final_eval_stats, params.dataset_name)
+    prefix = "{}, {}, {}, epoch: {}".format(model_params_name, config_name, model_name, params.epochs)
+    export_eval_stats("experiment_results.txt",
+                       prefix, final_eval_stats, params.dataset_name)
 
 
 def export_eval_stats(file_name, prefix, eval_stats, dataset_name):
-    s = prefix
+    s = '\n' + prefix + '\n\n'
     ave_1p_recall_l = []
     ave_recall_l = []
     # Print results on the final model
@@ -263,7 +264,14 @@ def export_eval_stats(file_name, prefix, eval_stats, dataset_name):
             ave_recall = eval_stats['intensityOxford']['ave_recall'][0]
             ave_recall_l.append(ave_recall)
             s += ", {:0.2f}, {:0.2f}".format(ave_1p_recall, ave_recall)
-
+        elif dataset_name == 'TUM':
+            ave_1p_recall = eval_stats['tum']['ave_one_percent_recall']
+            ave_1p_recall_l.append(ave_1p_recall)
+            all_recall = eval_stats['tum']['ave_recall']
+            for ave_recall in all_recall:
+                ave_recall_l.append(ave_recall)
+            s += 'Average 1% recall: {:0.2f}\n\n'.format(ave_1p_recall)
+            s += 'Average Recall @N: \n {}\n\n'.format(all_recall)
         else:
             for ds in ['oxford', 'university', 'residential', 'business']:
                 ave_1p_recall = eval_stats[ds]['ave_one_percent_recall']
@@ -274,7 +282,7 @@ def export_eval_stats(file_name, prefix, eval_stats, dataset_name):
 
         mean_1p_recall = np.mean(ave_1p_recall_l)
         mean_recall = np.mean(ave_recall_l)
-        s += ", {:0.2f}, {:0.2f}\n".format(mean_1p_recall, mean_recall)
+        s += 'Mean Average Recall @N: {}\n'.format(mean_recall)
         f.write(s)
 
 

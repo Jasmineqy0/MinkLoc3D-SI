@@ -187,7 +187,7 @@ def to_spherical(points, dataset_name):
             # Shifted to (0, 30)
             phi = (np.arccos(point[2] / r) * 180 / np.pi) - 75
 
-        elif dataset_name in ['IntensityOxford', 'Oxford']:
+        elif dataset_name in ['IntensityOxford', 'Oxford', 'TUM']:
             # Oxford scans are built from a 2D scanner.
             # Phi calculated from the vertical axis, so (0, 180)
             phi = np.arccos(point[2] / r) * 180 / np.pi

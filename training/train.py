@@ -4,6 +4,11 @@
 import argparse
 import torch
 
+import sys
+import os
+REPO_FOLDER = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.append(REPO_FOLDER)
+
 from training.trainer import do_train
 from misc.utils import MinkLocParams
 from datasets.dataset_utils import make_dataloaders

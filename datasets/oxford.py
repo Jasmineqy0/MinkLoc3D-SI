@@ -133,7 +133,8 @@ class OxfordDataset(Dataset):
         assert pc.shape[0] == self.n_points * 3, "Error in point cloud shape: {}".format(filename)
         pc = np.reshape(pc, (pc.shape[0] // 3, 3))
         pc = pc[np.linalg.norm(pc[:, :3], axis=1) < self.max_distance]
-
+        if pc.size == 0:
+            print(filename)
         pc = torch.tensor(pc, dtype=torch.float)
         return pc
 
@@ -415,7 +416,7 @@ class RemoveRandomBlock:
 
 if __name__ == '__main__':
     dataset_path = '/media/sf_Datasets/PointNetVLAD'
-    query_filename = 'test_queries_baseline.pickle'
+    query_filename = 'tum_test_queries_frame_5m_baseline.pickle'
 
     my_dataset = OxfordDataset()
 

@@ -110,8 +110,8 @@ class MinkLocParams:
         self.max_distance = params.getint('max_distance')
 
         self.dataset_name = params.get('dataset_name')
-        assert self.dataset_name in ['USyd', 'IntensityOxford', 'Oxford'], 'Dataset should be USyd, IntensityOxford ' \
-                                                                           'or Oxford '
+        assert self.dataset_name in ['USyd', 'IntensityOxford', 'Oxford', 'TUM'], 'Dataset should be USyd, IntensityOxford ' \
+                                                                           'or Oxford, TUM '
 
         self.dataset_folder = params.get('dataset_folder')
 
@@ -177,6 +177,9 @@ class MinkLocParams:
                                         'university_evaluation_database.pickle']
             self.eval_query_files = ['oxford_evaluation_query.pickle', 'business_evaluation_query.pickle',
                                      'residential_evaluation_query.pickle', 'university_evaluation_query.pickle']
+        elif self.dataset_name == 'TUM':
+            self.eval_database_files = ['tum_evaluation_frame_5m_database.pickle']
+            self.eval_query_files = ['tum_evaluation_frame_5m_query.pickle']
 
         assert len(self.eval_database_files) == len(self.eval_query_files)
 

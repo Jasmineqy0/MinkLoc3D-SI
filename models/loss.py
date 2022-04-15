@@ -6,6 +6,9 @@ import torch
 from pytorch_metric_learning import losses, miners
 from pytorch_metric_learning.distances import LpDistance
 
+# from pprint import pprint
+from pytorch_metric_learning.utils import common_functions as c_f
+c_f.COLLECT_STATS = True
 
 def make_loss(params):
     if params.loss == 'BatchHardTripletMarginLoss':
@@ -42,6 +45,8 @@ class HardTripletMinerWithMasks:
     def mine(self, embeddings, positives_mask, negatives_mask):
         # Based on pytorch-metric-learning implementation
         dist_mat = self.distance(embeddings)
+        positives_mask = positives_mask.type(torch.bool).to(embeddings.device)
+        negatives_mask = negatives_mask.type(torch.bool).to(embeddings.device)
         (hardest_positive_dist, hardest_positive_indices), a1p_keep = get_max_per_row(dist_mat, positives_mask)
         (hardest_negative_dist, hardest_negative_indices), a2n_keep = get_min_per_row(dist_mat, negatives_mask)
         a_keep_idx = torch.where(a1p_keep & a2n_keep)
@@ -84,6 +89,7 @@ class BatchHardTripletLossWithMasks:
         hard_triplets = self.miner_fn(embeddings, positives_mask, negatives_mask)
         dummy_labels = torch.arange(embeddings.shape[0]).to(embeddings.device)
         loss = self.loss_fn(embeddings, dummy_labels, hard_triplets)
+        # print('\nLoss:', loss)
         stats = {'loss': loss.item(), 'avg_embedding_norm': self.loss_fn.distance.final_avg_query_norm,
                  'num_non_zero_triplets': self.loss_fn.reducer.triplets_past_filter,
                  'num_triplets': len(hard_triplets[0]),

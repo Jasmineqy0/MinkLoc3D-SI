@@ -9,9 +9,9 @@ import pickle
 import random
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-base_path = "../../benchmark_datasets/"
+base_path = "../../datasets/"
 
-runs_folder= "oxford/"
+runs_folder= "frame_5m_without_ground"
 filename = "pointcloud_locations_20m_10overlap.csv"
 pointcloud_fols ="/pointcloud_20m_10overlap/"
 
@@ -29,10 +29,10 @@ print(folders)
 #####For training and test data split#####
 x_width=150
 y_width=150
-p1=[5735712.768124,620084.402381]
-p2=[5735611.299219,620540.270327]
-p3=[5735237.358209,620543.094379]
-p4=[5734749.303802,619932.693364]   
+p1=[5335870.258191128, 690986.4298562923]
+p2=[5336187.512281395, 691110.7028745761]
+p3=[5336094.618723596, 691056.692463843]
+p4=[5336067.634518754, 691132.1453338499]   
 p=[p1,p2,p3,p4]
 
 
@@ -48,8 +48,8 @@ def check_in_test_set(northing, easting, points, x_width, y_width):
 
 def construct_query_dict(df_centroids, filename):
 	tree = KDTree(df_centroids[['northing','easting']])
-	ind_nn = tree.query_radius(df_centroids[['northing','easting']],r=10)
-	ind_r = tree.query_radius(df_centroids[['northing','easting']], r=50)
+	ind_nn = tree.query_radius(df_centroids[['northing','easting']],r=2.5)
+	ind_r = tree.query_radius(df_centroids[['northing','easting']], r=15)
 	queries={}
 	for i in range(len(ind_nn)):
 		query=df_centroids.iloc[i]["file"]

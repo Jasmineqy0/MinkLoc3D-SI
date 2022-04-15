@@ -13,6 +13,10 @@ import torch
 import MinkowskiEngine as ME
 import tqdm
 
+import sys
+REPO_FOLDER = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.append(REPO_FOLDER)
+
 from misc.utils import MinkLocParams
 from models.model_factory import model_factory
 from datasets.dataset_utils import to_spherical

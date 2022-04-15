@@ -103,6 +103,8 @@ def load_pc(filename, params):
         pc = np.fromfile(file_path, dtype=np.float64).reshape([-1, 4])
     elif params.dataset_name == "Oxford":
         pc = np.fromfile(file_path, dtype=np.float64).reshape([-1, 3])
+    elif params.dataset_name == 'TUM':
+        pc = np.fromfile(file_path, dtype=np.float64).reshape([-1, 3])
         assert pc.size == params.num_points * 3, "Error in point cloud shape: {}".format(file_path)
 
     # remove intensity for models which are not using it
