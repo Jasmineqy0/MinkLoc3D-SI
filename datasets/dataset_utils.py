@@ -118,7 +118,10 @@ def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantiza
                 coords = ME.utils.batched_coordinates(coords)
                 feats = torch.cat(feats, dim=0)
 
-            batch = {'coords': coords, 'features': feats}
+            # batch = {'coords': coords, 'features': feats}
+            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+            batch = {'coords': coords, 'features': feats, 'clouds': batch}
+            #################################################
 
         # Compute positives and negatives mask
         # dataset.queries[label]['positives'] is bitarray
@@ -187,12 +190,12 @@ def to_spherical(points, dataset_name):
             # Shifted to (0, 30)
             phi = (np.arccos(point[2] / r) * 180 / np.pi) - 75
 
-        elif dataset_name in ['IntensityOxford', 'Oxford', 'TUM']:
+        elif dataset_name in ['IntensityOxford', 'Oxford']:
             # Oxford scans are built from a 2D scanner.
             # Phi calculated from the vertical axis, so (0, 180)
             phi = np.arccos(point[2] / r) * 180 / np.pi
 
-        elif dataset_name == 'KITTI':
+        elif dataset_name == ['KITTI', 'TUM']:
             # HDL-64 has 0.4 deg VRes and (+2, -24.8 VFoV).
             # Phi calculated from the vertical axis, so (88, 114.8)
             # Shifted to (0, 26.8)
