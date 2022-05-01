@@ -267,11 +267,10 @@ def export_eval_stats(file_name, prefix, eval_stats, dataset_name):
         elif dataset_name == 'TUM':
             ave_1p_recall = eval_stats['tum']['ave_one_percent_recall']
             ave_1p_recall_l.append(ave_1p_recall)
-            all_recall = eval_stats['tum']['ave_recall']
-            for ave_recall in all_recall:
-                ave_recall_l.append(ave_recall)
-            s += 'Average 1% recall: {:0.2f}\n\n'.format(ave_1p_recall)
-            s += 'Average Recall @N: \n {}\n\n'.format(all_recall)
+            ave_recall = eval_stats['tum']['ave_recall'][0]
+            ave_recall_l.append(ave_recall)
+            s += 'Average 1% recall: {:0.2f}\n'.format(ave_1p_recall)
+            s += 'Average Recall: {:0.2f}\n'.format(ave_recall)
         else:
             for ds in ['oxford', 'university', 'residential', 'business']:
                 ave_1p_recall = eval_stats[ds]['ave_one_percent_recall']
@@ -282,7 +281,7 @@ def export_eval_stats(file_name, prefix, eval_stats, dataset_name):
 
         mean_1p_recall = np.mean(ave_1p_recall_l)
         mean_recall = np.mean(ave_recall_l)
-        s += 'Mean Average Recall @N: {}\n'.format(mean_recall)
+        s += 'Mean 1% Recall @N: {:0.2f}\nMean Recall {:0.2f}\n\n '.format(mean_1p_recall, mean_recall)
         f.write(s)
 
 
