@@ -45,6 +45,12 @@ class ModelParams:
             else:
                 self.planes = [32, 64, 64]
 
+            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+            self.combine_pntvld = params.getboolean('combine_pntvld')
+            # assert self.combine_pntvld==False
+            self.combine_method = params['combine_method']
+            #################################################
+
             if 'layers' in params:
                 self.layers = [int(e) for e in params['layers'].split(',')]
             else:

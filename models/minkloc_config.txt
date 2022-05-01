@@ -2,6 +2,8 @@
 [MODEL]
 model = MinkFPN_GeM
 version = MinkLoc3D-S
+combine_pntvld = True
+combine_method = cat
 mink_quantization_size = 2.5,2.0,1.875
 planes = 32,64,64
 layers = 1,1,1

@@ -251,7 +251,7 @@ class PointNetfeat(nn.Module):
 
 
 class MinkLoc(torch.nn.Module):
-    def __init__(self, model, in_channels, feature_size, output_dim, planes, layers, num_top_down, conv0_kernel_size):
+    def __init__(self, model, in_channels, feature_size, output_dim, planes, layers, num_top_down, conv0_kernel_size, combine_pntvld, combine_method):
         super().__init__()
         self.model = model
         self.in_channels = in_channels
@@ -277,17 +277,21 @@ class MinkLoc(torch.nn.Module):
             raise NotImplementedError('Model not implemented: {}'.format(model))
             
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        PNTVLD_NUM_POINTS=4096
-        PNTVLD_GLOBAL_FEAT=True
-        PNTVLD_FEATURE_TRANSFORM=True
-        PNTVLD_MAX_POOL=False
-        PNTVLD_OUTPUT_DIM=256
+        self.combine_pntvld = combine_pntvld
+        self.combine_method = combine_method
 
-        self.point_net = PointNetfeat(num_points=PNTVLD_NUM_POINTS, global_feat=PNTVLD_GLOBAL_FEAT,
-                                      feature_transform=PNTVLD_FEATURE_TRANSFORM, max_pool=PNTVLD_MAX_POOL)
-        self.net_vlad = NetVLADLoupe(feature_size=1024, max_samples=PNTVLD_NUM_POINTS, cluster_size=64,
-                                     output_dim=PNTVLD_OUTPUT_DIM, gating=True, add_batch_norm=True,
-                                     is_training=True)
+        if combine_pntvld:
+            PNTVLD_NUM_POINTS=4096
+            PNTVLD_GLOBAL_FEAT=True
+            PNTVLD_FEATURE_TRANSFORM=True
+            PNTVLD_MAX_POOL=False
+            PNTVLD_OUTPUT_DIM=256
+
+            self.point_net = PointNetfeat(num_points=PNTVLD_NUM_POINTS, global_feat=PNTVLD_GLOBAL_FEAT,
+                                        feature_transform=PNTVLD_FEATURE_TRANSFORM, max_pool=PNTVLD_MAX_POOL)
+            self.net_vlad = NetVLADLoupe(feature_size=1024, max_samples=PNTVLD_NUM_POINTS, cluster_size=64,
+                                        output_dim=PNTVLD_OUTPUT_DIM, gating=True, add_batch_norm=True,
+                                        is_training=True)
         #################################################
 
     def forward(self, batch):
@@ -308,24 +312,31 @@ class MinkLoc(torch.nn.Module):
         # x is (batch_size, output_dim) tensor
         
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        BATCH_NUM_QUERIES = x.shape[0]
+        if self.combine_pntvld:
+            BATCH_NUM_QUERIES = x.shape[0]
 
-        PNTVLD_FEATURE_OUTPUT_DIM = 256
-        PNTVLD_NUM_POINTS = 4096
+            PNTVLD_FEATURE_OUTPUT_DIM = 256
+            PNTVLD_NUM_POINTS = 4096
 
+            PNTVLD_x = batch['clouds']
+            PNTVLD_x = PNTVLD_x.to('cuda')
+            
+            PNTVLD_x = PNTVLD_x.view((-1, 1, PNTVLD_NUM_POINTS, 3))
+            
+            PNTVLD_x = self.point_net(PNTVLD_x)
+            PNTVLD_x = self.net_vlad(PNTVLD_x)
 
-        PNTVLD_x = batch['clouds']
-        PNTVLD_x = PNTVLD_x.to('cuda')
-        
-        PNTVLD_x = PNTVLD_x.view((-1, 1, PNTVLD_NUM_POINTS, 3))
-        
-        PNTVLD_x = self.point_net(PNTVLD_x)
-        PNTVLD_x = self.net_vlad(PNTVLD_x)
-
-        PNTVLD_x = PNTVLD_x.view(BATCH_NUM_QUERIES, PNTVLD_FEATURE_OUTPUT_DIM)
-        
-        # Combine Features of Pointnetvlad & MinkLoc3D-S
-        x = torch.cat((PNTVLD_x, x), 1)
+            PNTVLD_x = PNTVLD_x.view(BATCH_NUM_QUERIES, PNTVLD_FEATURE_OUTPUT_DIM)
+            
+            # Combine Features of Pointnetvlad & MinkLoc3D-S
+            assert self.combine_method in ['add', 'cat']
+            if self.combine_method == 'add':
+                x = x + PNTVLD_x
+                assert x.shape[1] == self.output_dim
+            else:
+                x = torch.cat((PNTVLD_x, x), 1)
+                assert x.shape[1] == self.output_dim + PNTVLD_FEATURE_OUTPUT_DIM
+            assert x.dim() == 2
         #################################################
         
         

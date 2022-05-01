@@ -14,6 +14,11 @@ import MinkowskiEngine as ME
 import random
 import tqdm
 
+import sys
+import os
+REPO_FOLDER = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.append(REPO_FOLDER)
+
 from misc.utils import MinkLocParams
 from models.model_factory import model_factory
 from datasets.dataset_utils import to_spherical
@@ -149,6 +154,9 @@ def get_latent_vectors(model, set, device, params):
         with torch.no_grad():
             # models without intensity
             if params.model_params.version in ['MinkLoc3D', 'MinkLoc3D-S']:
+                #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+                batch = x.view(1, 4096, 3)
+                #################################################
                 coords = ME.utils.sparse_quantize(coordinates=x,
                                                   quantization_size=params.model_params.mink_quantization_size)
                 bcoords = ME.utils.batched_coordinates([coords]).to(device)
@@ -167,7 +175,13 @@ def get_latent_vectors(model, set, device, params):
                 feats = sparse_field.features.to(device)
                 bcoords = sparse_field.coordinates.to(device)
 
-            batch = {'coords': bcoords, 'features': feats}
+            # batch = {'coords': bcoords, 'features': feats}
+            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+            if params.model_params.combine_pntvld:
+                batch = {'coords': bcoords, 'features': feats, 'clouds': batch}
+            else:
+                batch = {'coords': bcoords, 'features': feats}
+            #################################################
             embedding = model(batch)
             # embedding is (1, 256) tensor
             if params.normalize_embeddings:

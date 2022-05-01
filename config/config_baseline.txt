@@ -2,12 +2,12 @@
 num_points = 4096
 max_distance = 300
 dataset_name = TUM
-dataset_folder = ../../datasets/frame_5m_without_ground
+dataset_folder = ../../datasets/frame_5m
 
 [TRAIN]
 num_workers = 4
 batch_size = 16
-batch_size_limit = 256
+batch_size_limit = 113
 batch_expansion_rate = 1.4
 batch_expansion_th = 0.7
 

@@ -60,7 +60,7 @@ def make_eval_dataset(params: MinkLocParams):
     return dataset
 
 
-def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantization_size=None):
+def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantization_size=None, combine_pntvld=False):
     # set_transform: the transform to be applied to all batch elements
     def collate_fn(data_list):
         # Constructs a batch object
@@ -120,7 +120,10 @@ def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantiza
 
             # batch = {'coords': coords, 'features': feats}
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            batch = {'coords': coords, 'features': feats, 'clouds': batch}
+            if combine_pntvld:
+                batch = {'coords': coords, 'features': feats, 'clouds': batch}
+            else:
+                batch = {'coords': coords, 'features': feats}
             #################################################
 
         # Compute positives and negatives mask
@@ -152,8 +155,13 @@ def make_dataloaders(params: MinkLocParams, debug=False):
                                  batch_size_limit=params.batch_size_limit,
                                  batch_expansion_rate=params.batch_expansion_rate)
     # Collate function collates items into a batch and applies a 'set transform' on the entire batch
+    # train_collate_fn = make_collate_fn(datasets['train'],  params.model_params.version, params.dataset_name,
+    #                                    params.model_params.mink_quantization_size)
+    #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+    # added 'combine_pntvld' argument in function make_colloate_fn
     train_collate_fn = make_collate_fn(datasets['train'],  params.model_params.version, params.dataset_name,
-                                       params.model_params.mink_quantization_size)
+                                       params.model_params.mink_quantization_size, params.model_params.combine_pntvld)
+    #################################################
     dataloders['train'] = DataLoader(datasets['train'], batch_sampler=train_sampler, collate_fn=train_collate_fn,
                                      num_workers=params.num_workers, pin_memory=True)
 

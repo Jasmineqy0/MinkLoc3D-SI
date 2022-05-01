@@ -1,78 +1,82 @@
 
-minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220409_2228, epoch: 40
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1854, epoch: 40
+combine pointnetvlad: False
 
-Average 1% recall: 84.81
+Average 1% recall: 86.42
+Average Recall: 57.60
+Mean 1% Recall @N: 86.42
+Mean Recall 57.60
 
-Average Recall @N: 
- [50.42242704 71.2109575  80.00512033 83.99897593 85.59907834 86.40552995
- 87.21198157 88.79928315 89.59293395 89.59293395 89.59293395 91.19303635
- 91.98668715 91.98668715 93.59959037 93.59959037 94.39324117 94.39324117
- 94.39324117 94.39324117 94.39324117 94.39324117 94.39324117 94.39324117
- 94.39324117]
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1900, epoch: 40
+combine pointnetvlad: False
 
-Mean Average Recall @N: 88.57347670250894
+Average 1% recall: 88.80
+Average Recall: 54.43
+Mean 1% Recall @N: 88.80
+Mean Recall 54.43
 
-minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220409_2229, epoch: 40
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1905, epoch: 40
+combine pointnetvlad: False
 
-Average 1% recall: 83.21
+Average 1% recall: 84.01
+Average Recall: 60.79
+Mean 1% Recall @N: 84.01
+Mean Recall 60.79
 
-Average Recall @N: 
- [60.01024066 73.57910906 81.59242192 83.20532514 83.99897593 85.59907834
- 88.79928315 88.79928315 89.60573477 91.19303635 92.79313876 94.39324117
- 94.39324117 94.39324117 94.39324117 94.39324117 94.39324117 94.39324117
- 94.39324117 94.39324117 94.39324117 94.39324117 94.39324117 94.39324117
- 94.39324117]
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1911, epoch: 40
+combine pointnetvlad: True, combine method: add
 
-Mean Average Recall @N: 89.62724014336918
+Average 1% recall: 76.04
+Average Recall: 44.02
+Mean 1% Recall @N: 76.04
+Mean Recall 44.02
 
-minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220409_2240, epoch: 40
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1927, epoch: 40
+combine pointnetvlad: True, combine method: add
 
-Average 1% recall: 85.61
+Average 1% recall: 80.75
+Average Recall: 55.97
+Mean 1% Recall @N: 80.75
+Mean Recall 55.97
 
-Average Recall @N: 
- [57.578085   76.76651306 79.96671787 83.19252432 87.19918075 88.79928315
- 88.79928315 89.59293395 91.98668715 91.98668715 91.98668715 92.78033794
- 92.78033794 92.78033794 92.78033794 92.78033794 92.78033794 93.58678955
- 93.58678955 93.58678955 93.58678955 93.58678955 93.58678955 93.58678955
- 93.58678955]
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1940, epoch: 40
+combine pointnetvlad: True, combine method: add
 
-Mean Average Recall @N: 89.32923707117256
+Average 1% recall: 78.42
+Average Recall: 43.22
+Mean 1% Recall @N: 78.42
+Mean Recall 43.22
 
-minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220415_0809, epoch: 40
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_1951, epoch: 40
+combine pointnetvlad: True, combine method: cat
 
-Average 1% recall: 89.61
+Average 1% recall: 79.24
+Average Recall: 47.21
+Mean 1% Recall @N: 79.24
+Mean Recall 47.21
 
-Average Recall @N: 
- [ 54.390681    71.99180748  79.19866871  87.99283154  90.39938556
-  91.19303635  92.78033794  94.38044035  95.18689196  95.18689196
-  95.18689196  95.99334357  97.59344598  97.59344598  97.59344598
-  97.59344598  97.59344598  97.59344598  97.59344598  97.59344598
-  97.59344598  98.38709677 100.         100.         100.        ]
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_2002, epoch: 40
+combine pointnetvlad: True, combine method: cat
 
-Mean Average Recall @N: 92.82437275985663
+Average 1% recall: 80.82
+Average Recall: 47.22
+Mean 1% Recall @N: 80.82
+Mean Recall 47.22
 
-minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220415_0822, epoch: 40
+ 
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220501_2012, epoch: 40
+combine pointnetvlad: True, combine method: cat
 
-Average 1% recall: 85.60
+Average 1% recall: 77.60
+Average Recall: 48.77
+Mean 1% Recall @N: 77.60
+Mean Recall 48.77
 
-Average Recall @N: 
- [58.42293907 72.77265745 78.3922171  84.79262673 87.18637993 90.38658474
- 90.38658474 92.79313876 93.58678955 95.18689196 95.99334357 96.79979519
- 96.79979519 96.79979519 97.59344598 97.59344598 97.59344598 97.59344598
- 97.59344598 97.59344598 97.59344598 97.59344598 97.59344598 97.59344598
- 97.59344598]
-
-Mean Average Recall @N: 92.15309779825908
-
-minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220415_0832, epoch: 40
-
-Average 1% recall: 81.66
-
-Average Recall @N: 
- [53.59703021 71.22375832 75.23041475 81.65642601 84.83102919 87.22478239
- 88.81208397 91.20583717 92.79313876 92.79313876 94.40604199 95.19969278
- 95.19969278 95.99334357 95.99334357 96.79979519 96.79979519 96.79979519
- 96.79979519 97.59344598 97.59344598 97.59344598 98.39989759 98.39989759
- 98.39989759]
-
-Mean Average Recall @N: 90.8535586277522
+ 
