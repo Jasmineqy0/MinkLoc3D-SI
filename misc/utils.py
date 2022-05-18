@@ -46,9 +46,11 @@ class ModelParams:
                 self.planes = [32, 64, 64]
 
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            self.combine_pntvld = params.getboolean('combine_pntvld')
+            self.combine_pnt = params.getboolean('combine_pnt')
             # assert self.combine_pntvld==False
-            self.combine_method = params['combine_method']
+            self.combine_way = params['combine_way']
+            self.cross_att_pnt = params.getboolean('cross_att_pnt')
+            assert ~(self.combine_pnt == True and self.cross_att_pnt == True), 'Either Combine or Cross Attention Pointnet or Neither'
             #################################################
 
             if 'layers' in params:

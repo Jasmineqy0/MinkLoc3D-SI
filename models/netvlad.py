@@ -7,11 +7,12 @@ import torch.utils.data
 import torch.nn.functional as F
 import math
 
+torch.manual_seed(0)
+
 # NOTE: The toolbox can only pool lists of features of the same length. It was specifically optimized to efficiently
 # o so. One way to handle multiple lists of features of variable length is to create, via a data augmentation
 # technique, a tensor of shape: 'batch_size'x'max_samples'x'feature_size'. Where 'max_samples' would be the maximum
 # number of feature per list. Then for each list, you would fill the tensor with 0 values.
-
 
 class NetVLADLoupe(nn.Module):
     def __init__(self, feature_size, cluster_size, output_dim, gating=True, add_batch_norm=True):

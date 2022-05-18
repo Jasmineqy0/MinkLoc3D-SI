@@ -1,14 +1,24 @@
+root@ca9122f77af0:/home/xiayan/testdir/MinkLoc3D-SI/eval# python evaluate.py --config ../config/config_baseline.txt --model_config ../models/minkloc_config.txt --weights ../weights/MinkLoc3D-SI-USyd.pth
+/opt/conda/lib/python3.8/site-packages/MinkowskiEngine-0.5.4-py3.8-linux-x86_64.egg/MinkowskiEngine/__init__.py:36: UserWarning: The environment variable `OMP_NUM_THREADS` not set. MinkowskiEngine will automatically set `OMP_NUM_THREADS=16`. If you want to set `OMP_NUM_THREADS` manually, please export it on the command line before running a python script. e.g. `export OMP_NUM_THREADS=12; python your_program.py`. It is recommended to set it below 24.
+  warnings.warn(
+Config path: ../config/config_baseline.txt
+Model config path: ../models/minkloc_config.txt
+Weights: ../weights/MinkLoc3D-SI-USyd.pth
+Debug mode: False
+Visualize: False
+Log search results: False
+
 Parameters:
 params_path: ../config/config_baseline.txt
 model_params_path: ../models/minkloc_config.txt
 num_points: 4096
 max_distance: 300
 dataset_name: TUM
-dataset_folder: ../../datasets/frame_5m_without_ground
+dataset_folder: ../../datasets/frame_5m
 num_workers: 4
 batch_size: 16
 batch_expansion_th: 0.7
-batch_size_limit: 113
+batch_size_limit: 30
 batch_expansion_rate: 1.4
 lr: 0.001
 scheduler: MultiStepLR
@@ -31,8 +41,9 @@ mink_quantization_size: [2.5, 2.0, 1.875]
 version: MinkLoc3D-S
 feature_size: 256
 planes: [32, 64, 64]
-combine_pntvld: False
-combine_method: add
+combine_pnt: False
+combine_way: cat
+cross_att_pnt: False
 layers: [1, 1, 1]
 num_top_down: 1
 conv0_kernel_size: 5
@@ -41,9 +52,9 @@ conv0_kernel_size: 5
 Device: cuda
 Loading weights: ../weights/MinkLoc3D-SI-USyd.pth
 Extracting database sets embeddings
-100%|███████████████████████████████████████████████████████| 2/2 [00:20<00:00, 10.12s/it]
+100%|████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:18<00:00,  9.40s/it]
 Extracting query sets embeddings
-100%|███████████████████████████████████████████████████████| 2/2 [00:03<00:00,  1.91s/it]
+100%|████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:03<00:00,  1.70s/it]
 Dataset: tum
 Avg. top 1% recall: 76.80   Avg. similarity: 23.2954   Avg. recall @N:
 [44.77726575 58.38453661 71.19815668 75.9984639  79.1858679  83.99897593
@@ -51,6 +62,3 @@ Avg. top 1% recall: 76.80   Avg. similarity: 23.2954   Avg. recall @N:
  88.79928315 89.59293395 89.59293395 89.59293395 89.59293395 90.38658474
  91.97388633 92.78033794 93.58678955 93.58678955 93.58678955 93.58678955
  93.58678955]
-
-
-

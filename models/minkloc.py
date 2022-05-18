@@ -7,6 +7,8 @@ from __future__ import print_function
 import torch
 
 torch.cuda.empty_cache()
+
+from numba import njit, jit
 #################################################
 
 import MinkowskiEngine as ME
@@ -24,109 +26,6 @@ from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
 import math
-
-class NetVLADLoupe(nn.Module):
-    def __init__(self, feature_size, max_samples, cluster_size, output_dim,
-                 gating=True, add_batch_norm=True, is_training=True):
-        super(NetVLADLoupe, self).__init__()
-        self.feature_size = feature_size
-        self.max_samples = max_samples
-        self.output_dim = output_dim
-        self.is_training = is_training
-        self.gating = gating
-        self.add_batch_norm = add_batch_norm
-        self.cluster_size = cluster_size
-        self.softmax = nn.Softmax(dim=-1)
-        self.cluster_weights = nn.Parameter(torch.randn(
-            feature_size, cluster_size) * 1 / math.sqrt(feature_size))
-        self.cluster_weights2 = nn.Parameter(torch.randn(
-            1, feature_size, cluster_size) * 1 / math.sqrt(feature_size))
-        self.hidden1_weights = nn.Parameter(
-            torch.randn(cluster_size * feature_size, output_dim) * 1 / math.sqrt(feature_size))
-
-        if add_batch_norm:
-            self.cluster_biases = None
-            self.bn1 = nn.BatchNorm1d(cluster_size)
-        else:
-            self.cluster_biases = nn.Parameter(torch.randn(
-                cluster_size) * 1 / math.sqrt(feature_size))
-            self.bn1 = None
-
-        self.bn2 = nn.BatchNorm1d(output_dim)
-
-        if gating:
-            self.context_gating = GatingContext(
-                output_dim, add_batch_norm=add_batch_norm)
-
-    def forward(self, x):
-        x = x.transpose(1, 3).contiguous()
-        x = x.view((-1, self.max_samples, self.feature_size))
-        activation = torch.matmul(x, self.cluster_weights)
-        if self.add_batch_norm:
-            # activation = activation.transpose(1,2).contiguous()
-            activation = activation.view(-1, self.cluster_size)
-            activation = self.bn1(activation)
-            activation = activation.view(-1,
-                                         self.max_samples, self.cluster_size)
-            # activation = activation.transpose(1,2).contiguous()
-        else:
-            activation = activation + self.cluster_biases
-        activation = self.softmax(activation)
-        activation = activation.view((-1, self.max_samples, self.cluster_size))
-
-        a_sum = activation.sum(-2, keepdim=True)
-        a = a_sum * self.cluster_weights2
-
-        activation = torch.transpose(activation, 2, 1)
-        x = x.view((-1, self.max_samples, self.feature_size))
-        vlad = torch.matmul(activation, x)
-        vlad = torch.transpose(vlad, 2, 1)
-        vlad = vlad - a
-
-        vlad = F.normalize(vlad, dim=1, p=2)
-        vlad = vlad.contiguous().view((-1, self.cluster_size * self.feature_size))
-        vlad = F.normalize(vlad, dim=1, p=2)
-
-        vlad = torch.matmul(vlad, self.hidden1_weights)
-
-        vlad = self.bn2(vlad)
-
-        if self.gating:
-            vlad = self.context_gating(vlad)
-
-        return vlad
-
-
-class GatingContext(nn.Module):
-    def __init__(self, dim, add_batch_norm=True):
-        super(GatingContext, self).__init__()
-        self.dim = dim
-        self.add_batch_norm = add_batch_norm
-        self.gating_weights = nn.Parameter(
-            torch.randn(dim, dim) * 1 / math.sqrt(dim))
-        self.sigmoid = nn.Sigmoid()
-
-        if add_batch_norm:
-            self.gating_biases = None
-            self.bn1 = nn.BatchNorm1d(dim)
-        else:
-            self.gating_biases = nn.Parameter(
-                torch.randn(dim) * 1 / math.sqrt(dim))
-            self.bn1 = None
-
-    def forward(self, x):
-        gates = torch.matmul(x, self.gating_weights)
-
-        if self.add_batch_norm:
-            gates = self.bn1(gates)
-        else:
-            gates = gates + self.gating_biases
-
-        gates = self.sigmoid(gates)
-
-        activation = x * gates
-
-        return activation
 
 
 class Flatten(nn.Module):
@@ -192,9 +91,47 @@ class STN3d(nn.Module):
         x = x.view(-1, self.k, self.k)
         return x
 
+@njit
+def to_spherical_me(idx, points, dataset_name):
+    spherical_points = []
+    for point in points:
+        # if (np.abs(point[:3]) < 1e-4).all():
+        #     continue
+        r = np.linalg.norm(point[:3])
+
+        # Theta is calculated as an angle measured from the y-axis towards the x-axis
+        # Shifted to range (0, 360)
+        theta = np.arctan2(point[1], point[0]) * 180 / np.pi
+        if theta < 0:
+            theta += 360
+
+        if dataset_name == "USyd":
+            # VLP-16 has 2 deg VRes and (+15, -15 VFoV).
+            # Phi calculated from the vertical axis, so (75, 105)
+            # Shifted to (0, 30)
+            phi = (np.arccos(point[2] / r) * 180 / np.pi) - 75
+
+        elif dataset_name in ['IntensityOxford', 'Oxford']:
+            # Oxford scans are built from a 2D scanner.
+            # Phi calculated from the vertical axis, so (0, 180)
+            phi = np.arccos(point[2] / r) * 180 / np.pi
+
+        elif dataset_name == ['KITTI', 'TUM']:
+            # HDL-64 has 0.4 deg VRes and (+2, -24.8 VFoV).
+            # Phi calculated from the vertical axis, so (88, 114.8)
+            # Shifted to (0, 26.8)
+            phi = (np.arccos(point[2] / r) * 180 / np.pi) - 88
+
+        if point.shape[-1] == 4:
+            spherical_points.append([idx, r, theta, phi, point[3]])
+        else:
+            spherical_points.append([idx, r, theta, phi])
+
+    return spherical_points
+
 
 class PointNetfeat(nn.Module):
-    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True):
+    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, feature_size=1024):
         super(PointNetfeat, self).__init__()
         self.stn = STN3d(num_points=num_points, k=3, use_bn=False)
         self.feature_trans = STN3d(num_points=num_points, k=64, use_bn=False)
@@ -203,12 +140,19 @@ class PointNetfeat(nn.Module):
         self.conv2 = torch.nn.Conv2d(64, 64, (1, 1))
         self.conv3 = torch.nn.Conv2d(64, 64, (1, 1))
         self.conv4 = torch.nn.Conv2d(64, 128, (1, 1))
-        self.conv5 = torch.nn.Conv2d(128, 1024, (1, 1))
+        # self.conv5 = torch.nn.Conv2d(128, 1024, (1, 1))
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        self.conv5 = torch.nn.Conv2d(128, feature_size, (1, 1))
+        self.feature_size = feature_size
+        #################################################
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(64)
         self.bn4 = nn.BatchNorm2d(128)
-        self.bn5 = nn.BatchNorm2d(1024)
+        # self.bn5 = nn.BatchNorm2d(1024)
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        self.bn5 = nn.BatchNorm2d(feature_size)
+        #################################################
         self.mp1 = torch.nn.MaxPool2d((num_points, 1), 1)
         self.num_points = num_points
         self.global_feat = global_feat
@@ -216,6 +160,14 @@ class PointNetfeat(nn.Module):
 
     def forward(self, x):
         batchsize = x.size()[0]
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        coords = []
+        for idx, e in enumerate(np.squeeze(x, axis=1)):
+            # Convert coordinates to spherical, return [batch_idx, r, theta, phi] with added batch_idx for later conversion of sparse tensor
+            spherical_e_me = torch.tensor(to_spherical_me(idx, torch.Tensor.cpu(e).numpy(), 'TUM'), dtype=torch.int32)
+            coords.append(spherical_e_me)
+        coords = torch.vstack(coords)
+        #################################################
         trans = self.stn(x)
         x = torch.matmul(torch.squeeze(x), trans)
         x = x.view(batchsize, 1, -1, 3)
@@ -237,6 +189,11 @@ class PointNetfeat(nn.Module):
         x = F.relu(self.bn4(self.conv4(x)))
         x = self.bn5(self.conv5(x))
         if not self.max_pool:
+            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+            feats = x.view(-1, self.feature_size)
+            # return a sparse tensor with pointnet features of all points
+            return coords, feats
+            #################################################
             return x
         else:
             x = self.mp1(x)
@@ -251,14 +208,46 @@ class PointNetfeat(nn.Module):
 
 
 class MinkLoc(torch.nn.Module):
-    def __init__(self, model, in_channels, feature_size, output_dim, planes, layers, num_top_down, conv0_kernel_size, combine_pntvld, combine_method):
+    def __init__(self, model, in_channels, feature_size, output_dim, planes, layers, num_top_down, conv0_kernel_size, combine_pnt, combine_way, cross_att_pnt):
         super().__init__()
+        
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        self.combine_pnt = combine_pnt
+        self.combine_way = combine_way
+        self.cross_att_pnt = cross_att_pnt
+
+        if combine_pnt:
+            PNT_NUM_POINTS=4096
+            PNT_GLOBAL_FEAT=True
+            PNT_FEATURE_TRANSFORM=True
+            # original value False
+            PNT_MAX_POOL= False
+            
+            # add new args of PointNetfeat: feature_size
+            self.point_net = PointNetfeat(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
+                                        feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
+                                        feature_size=feature_size)
+        elif cross_att_pnt:
+            PNT_NUM_POINTS=4096
+            PNT_GLOBAL_FEAT=True
+            PNT_FEATURE_TRANSFORM=True
+            # original value False
+            PNT_MAX_POOL= False
+            CROSS_FEATURE_SIZE = 32
+            
+            self.point_net = PointNetfeat(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
+                                        feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
+                                        feature_size=CROSS_FEATURE_SIZE)
+            
+        #################################################        
+        
         self.model = model
         self.in_channels = in_channels
         self.feature_size = feature_size    # Size of local features produced by local feature extraction block
         self.output_dim = output_dim        # Dimensionality of the global descriptor
         self.backbone = MinkFPN(in_channels=in_channels, out_channels=self.feature_size, num_top_down=num_top_down,
-                                conv0_kernel_size=conv0_kernel_size, layers=layers, planes=planes)
+                                conv0_kernel_size=conv0_kernel_size, layers=layers, planes=planes,
+                                cross_att_pnt=cross_att_pnt) # INCORPORATE POINTNETVLAD FEATURES
         self.n_backbone_features = output_dim
 
         if model == 'MinkFPN_Max':
@@ -275,24 +264,6 @@ class MinkLoc(torch.nn.Module):
                                               cluster_size=64, gating=True)
         else:
             raise NotImplementedError('Model not implemented: {}'.format(model))
-            
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        self.combine_pntvld = combine_pntvld
-        self.combine_method = combine_method
-
-        if combine_pntvld:
-            PNTVLD_NUM_POINTS=4096
-            PNTVLD_GLOBAL_FEAT=True
-            PNTVLD_FEATURE_TRANSFORM=True
-            PNTVLD_MAX_POOL=False
-            PNTVLD_OUTPUT_DIM=256
-
-            self.point_net = PointNetfeat(num_points=PNTVLD_NUM_POINTS, global_feat=PNTVLD_GLOBAL_FEAT,
-                                        feature_transform=PNTVLD_FEATURE_TRANSFORM, max_pool=PNTVLD_MAX_POOL)
-            self.net_vlad = NetVLADLoupe(feature_size=1024, max_samples=PNTVLD_NUM_POINTS, cluster_size=64,
-                                        output_dim=PNTVLD_OUTPUT_DIM, gating=True, add_batch_norm=True,
-                                        is_training=True)
-        #################################################
 
     def forward(self, batch):
         # Coords must be on CPU, features can be on GPU - see MinkowskiEngine documentation
@@ -302,7 +273,55 @@ class MinkLoc(torch.nn.Module):
         coords = coords.to('cuda')
 
         x = ME.SparseTensor(feats, coords)
-        x = self.backbone(x)
+        
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        if self.cross_att_pnt or self.combine_pnt:
+            PNT_NUM_POINTS = 4096
+
+            PNT_x = batch['clouds']
+            PNT_x = PNT_x.to('cuda')
+            
+            PNT_x = PNT_x.view((-1, 1, PNT_NUM_POINTS, 3))
+            
+            PNT_coords, PNT_feats = self.point_net(PNT_x)
+            PNT_coords = PNT_coords.to('cuda')
+            PNT_feats = PNT_feats.to('cuda')
+            y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords, 
+                    coordinate_manager=x.coordinate_manager)
+            if self.cross_att_pnt:
+                x = self.backbone(x, y)
+            else:
+                x = self.backbone(x)
+        else:
+            x = self.backbone(x)
+        #################################################        
+        
+        # x = self.backbone(x)
+
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        if self.combine_pnt:
+            # PNT_NUM_POINTS = 4096
+
+            # PNT_x = batch['clouds']
+            # PNT_x = PNT_x.to('cuda')
+            
+            # PNT_x = PNT_x.view((-1, 1, PNT_NUM_POINTS, 3))
+            
+            # PNT_coords, PNT_feats = self.point_net(PNT_x)
+            # PNT_coords = PNT_coords.to('cuda')
+            # PNT_feats = PNT_feats.to('cuda')
+            
+            y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords, 
+                                coordinate_manager=x.coordinate_manager)
+            
+            # Combine Features of Pointnetvlad & MinkLoc3D-S
+            assert self.combine_way in ['add', 'cat']
+            if self.combine_way == 'add':
+                ##ToDo
+                assert False, 'Can"t add Pointnet features, concat only'
+            else:
+                x = x + y
+        #################################################
 
         # x is (num_points, n_features) tensor
         assert x.shape[1] == self.feature_size, 'Backbone output tensor has: {} channels. Expected: {}'.format(x.shape[1], self.feature_size)
@@ -311,33 +330,6 @@ class MinkLoc(torch.nn.Module):
         assert x.shape[1] == self.output_dim, 'Output tensor has: {} channels. Expected: {}'.format(x.shape[1], self.output_dim)
         # x is (batch_size, output_dim) tensor
         
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        if self.combine_pntvld:
-            BATCH_NUM_QUERIES = x.shape[0]
-
-            PNTVLD_FEATURE_OUTPUT_DIM = 256
-            PNTVLD_NUM_POINTS = 4096
-
-            PNTVLD_x = batch['clouds']
-            PNTVLD_x = PNTVLD_x.to('cuda')
-            
-            PNTVLD_x = PNTVLD_x.view((-1, 1, PNTVLD_NUM_POINTS, 3))
-            
-            PNTVLD_x = self.point_net(PNTVLD_x)
-            PNTVLD_x = self.net_vlad(PNTVLD_x)
-
-            PNTVLD_x = PNTVLD_x.view(BATCH_NUM_QUERIES, PNTVLD_FEATURE_OUTPUT_DIM)
-            
-            # Combine Features of Pointnetvlad & MinkLoc3D-S
-            assert self.combine_method in ['add', 'cat']
-            if self.combine_method == 'add':
-                x = x + PNTVLD_x
-                assert x.shape[1] == self.output_dim
-            else:
-                x = torch.cat((PNTVLD_x, x), 1)
-                assert x.shape[1] == self.output_dim + PNTVLD_FEATURE_OUTPUT_DIM
-            assert x.dim() == 2
-        #################################################
         
         
         return x
