@@ -132,4 +132,12 @@ Average Recall: 8.82
 Mean 1% Recall @N: 25.61
 Mean Recall 8.82
 
- 
+####################################################################################
+above are the models with features concatenated after backbone before pooling
+below are the models cross attention
+####################################################################################
+
+Average 1% recall: 90.41
+Average Recall: 66.40
+Mean 1% Recall @N: 25.61
+Mean Recall 66.40

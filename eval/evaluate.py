@@ -180,7 +180,7 @@ def get_latent_vectors(model, set, device, params):
 
             # batch = {'coords': bcoords, 'features': feats}
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            if params.model_params.combine_pnt:
+            if params.model_params.combine_pnt or params.model_params.cross_att_pnt:
                 batch = {'coords': bcoords, 'features': feats, 'clouds': batch}
             else:
                 batch = {'coords': bcoords, 'features': feats}

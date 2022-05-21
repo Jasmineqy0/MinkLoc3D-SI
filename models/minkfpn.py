@@ -106,6 +106,45 @@ class MinkFPN(ResNetBase):
     def batch_tolist(self, x:TensorType, seq:List[int]) -> List[TensorType]:
         x = list(torch.split(x, seq))
         return x
+    
+    def combine_cross_attention(self, x, y):
+        x_batch_feat_size = self.batch_feat_size(x.C)
+        y_batch_feat_size = self.batch_feat_size(y.C)
+        
+        x_pe = self.batch_tolist(self.pos_embed(x.C[:, 1:]), x_batch_feat_size)
+        y_pe = self.batch_tolist(self.pos_embed(y.C[:, 1:]), y_batch_feat_size)
+        y_feats_un = self.batch_tolist(y.F, y_batch_feat_size)
+        x_feats_un = self.batch_tolist(x.F, x_batch_feat_size)
+
+        x_pe_padded, _, _ = pad_sequence(x_pe)
+        y_pe_padded, _, _ = pad_sequence(y_pe)
+        
+        x_feats_padded, x_key_padding_mask, _ = pad_sequence(x_feats_un,
+                                                                require_padding_mask=True)
+        y_feats_padded, y_key_padding_mask, _ = pad_sequence(y_feats_un,
+                                                                require_padding_mask=True)
+        
+        x_feats_cond, y_feats_cond = self.transformer_encoder(
+            x_feats_padded, y_feats_padded,
+            src_key_padding_mask=x_key_padding_mask,
+            tgt_key_padding_mask=y_key_padding_mask,
+            src_pos=x_pe_padded if self.transformer_encoder_has_pos_emb else None,
+            tgt_pos=y_pe_padded if self.transformer_encoder_has_pos_emb else None,
+        )
+        
+        x_feats_cond = torch.squeeze(x_feats_cond, dim=0)
+        y_feats_cond = torch.squeeze(y_feats_cond, dim=0)
+        x_feats_list = unpad_sequences(x_feats_cond, x_batch_feat_size)
+        y_feats_list = unpad_sequences(y_feats_cond, y_batch_feat_size)
+        
+        x_feats = torch.vstack(x_feats_list)
+        y_feats = torch.vstack(y_feats_list)
+        
+        x =  ME.SparseTensor(coordinates=x.C, features=x_feats)
+        y =  ME.SparseTensor(coordinates=y.C, features=y_feats, coordinate_manager=x.coordinate_manager)
+        x = x + y
+        
+        return x
 #################################################
 
     def forward(self, x, y=None):
@@ -120,41 +159,7 @@ class MinkFPN(ResNetBase):
 
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
         if y:
-            x_batch_feat_size = self.batch_feat_size(x.C)
-            y_batch_feat_size = self.batch_feat_size(y.C)
-            
-            x_pe = self.batch_tolist(self.pos_embed(x.C[:, 1:]), x_batch_feat_size)
-            y_pe = self.batch_tolist(self.pos_embed(y.C[:, 1:]), y_batch_feat_size)
-            y_feats_un = self.batch_tolist(y.F, y_batch_feat_size)
-            x_feats_un = self.batch_tolist(x.F, x_batch_feat_size)
-
-            x_pe_padded, _, _ = pad_sequence(x_pe)
-            y_pe_padded, _, _ = pad_sequence(y_pe)
-            
-            x_feats_padded, x_key_padding_mask, _ = pad_sequence(x_feats_un,
-                                                                 require_padding_mask=True)
-            y_feats_padded, y_key_padding_mask, _ = pad_sequence(y_feats_un,
-                                                                 require_padding_mask=True)
-            
-            x_feats_cond, y_feats_cond = self.transformer_encoder(
-                x_feats_padded, y_feats_padded,
-                src_key_padding_mask=x_key_padding_mask,
-                tgt_key_padding_mask=y_key_padding_mask,
-                src_pos=x_pe_padded if self.transformer_encoder_has_pos_emb else None,
-                tgt_pos=y_pe_padded if self.transformer_encoder_has_pos_emb else None,
-            )
-            
-            x_feats_cond = torch.squeeze(x_feats_cond)
-            y_feats_cond = torch.squeeze(y_feats_cond)
-            x_feats_list = unpad_sequences(x_feats_cond, x_batch_feat_size)
-            y_feats_list = unpad_sequences(y_feats_cond, y_batch_feat_size)
-            
-            x_feats = torch.vstack(x_feats_list)
-            y_feats = torch.vstack(y_feats_list)
-            
-            x =  ME.SparseTensor(coordinates=x.C, features=x_feats)
-            y =  ME.SparseTensor(coordinates=y.C, features=y_feats, coordinate_manager=x.coordinate_manager)
-            x = x + y
+            x = self.combine_cross_attention(x, y)
         #################################################
         
         # BOTTOM-UP PASS
