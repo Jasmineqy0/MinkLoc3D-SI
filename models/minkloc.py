@@ -315,12 +315,8 @@ class MinkLoc(torch.nn.Module):
                                 coordinate_manager=x.coordinate_manager)
             
             # Combine Features of Pointnetvlad & MinkLoc3D-S
-            assert self.combine_way in ['add', 'cat']
-            if self.combine_way == 'add':
-                ##ToDo
-                assert False, 'Can"t add Pointnet features, concat only'
-            else:
-                x = x + y
+            assert self.combine_way == 'cat', 'concat features only'
+            x = x + y
         #################################################
 
         # x is (num_points, n_features) tensor
