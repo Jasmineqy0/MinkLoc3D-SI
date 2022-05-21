@@ -93,7 +93,7 @@ Mean Recall 57.63
 
  
 minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220519_0022, epoch: 40
-combine pointnet: False, 
+combine pointnet: False, feature_dim = 256
 
 Average 1% recall: 81.62
 Average Recall: 55.24
@@ -125,7 +125,7 @@ Mean Recall 27.19
 
  
 minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220519_0256, epoch: 40
-combine pointnet: True, combine way: cat
+combine pointnet: True, combine way: cat, feature_dim: 512
 
 Average 1% recall: 25.61
 Average Recall: 8.82
@@ -136,6 +136,9 @@ Mean Recall 8.82
 above are the models with features concatenated after backbone before pooling
 below are the models cross attention
 ####################################################################################
+
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220521_2156, epoch: 40
+combine pointnet: True, combine way: cat, feature_dim: 512
 
 Average 1% recall: 90.41
 Average Recall: 66.40
