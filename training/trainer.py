@@ -243,7 +243,8 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
     prefix = "{}, {}, {}, epoch: {}".format(model_params_name, config_name, model_name, params.epochs)
     prefix += f"\ncombine pointnet: {params.model_params.combine_pnt}, "
-    prefix += f"combine way: {params.model_params.combine_way}" if params.model_params.combine_pnt else ""
+    prefix += f"combine way: {params.model_params.combine_way}, " if params.model_params.combine_pnt else ""
+    prefix += f"cross attention: {params.model_params.comcross_att_pnt}" if params.model_params.comcross_att_pnt else ""
     #################################################
     # prefix = "{}, {}, {}, epoch: {}".format(model_params_name, config_name, model_name, params.epochs)
     export_eval_stats("experiment_results.txt",

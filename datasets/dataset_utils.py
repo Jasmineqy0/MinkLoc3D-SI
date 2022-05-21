@@ -216,3 +216,42 @@ def to_spherical(points, dataset_name):
             spherical_points.append([r, theta, phi])
 
     return spherical_points
+
+
+@njit
+def to_spherical_me(idx, points, dataset_name):
+    spherical_points = []
+    for point in points:
+        # if (np.abs(point[:3]) < 1e-4).all():
+        #     continue
+        r = np.linalg.norm(point[:3])
+
+        # Theta is calculated as an angle measured from the y-axis towards the x-axis
+        # Shifted to range (0, 360)
+        theta = np.arctan2(point[1], point[0]) * 180 / np.pi
+        if theta < 0:
+            theta += 360
+
+        if dataset_name == "USyd":
+            # VLP-16 has 2 deg VRes and (+15, -15 VFoV).
+            # Phi calculated from the vertical axis, so (75, 105)
+            # Shifted to (0, 30)
+            phi = (np.arccos(point[2] / r) * 180 / np.pi) - 75
+
+        elif dataset_name in ['IntensityOxford', 'Oxford']:
+            # Oxford scans are built from a 2D scanner.
+            # Phi calculated from the vertical axis, so (0, 180)
+            phi = np.arccos(point[2] / r) * 180 / np.pi
+
+        elif dataset_name == ['KITTI', 'TUM']:
+            # HDL-64 has 0.4 deg VRes and (+2, -24.8 VFoV).
+            # Phi calculated from the vertical axis, so (88, 114.8)
+            # Shifted to (0, 26.8)
+            phi = (np.arccos(point[2] / r) * 180 / np.pi) - 88
+
+        if point.shape[-1] == 4:
+            spherical_points.append([idx, r, theta, phi, point[3]])
+        else:
+            spherical_points.append([idx, r, theta, phi])
+
+    return spherical_points
