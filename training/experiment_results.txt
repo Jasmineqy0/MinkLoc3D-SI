@@ -138,9 +138,17 @@ below are the models cross attention
 ####################################################################################
 
 minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220521_2156, epoch: 40
-combine pointnet: True, combine way: cat, feature_dim: 512
+combine pointnet: True, combine way: cat, feature_dim: 256, batch_size_limit = 30
 
 Average 1% recall: 90.41
 Average Recall: 66.40
 Mean 1% Recall @N: 25.61
 Mean Recall 66.40
+
+minkloc_config.txt, config_baseline.txt, model_MinkFPN_GeM_20220521_2303, epoch: 40
+combine pointnet: True, combine way: cat, feature_dim: 256, batch_size_limit = 30
+
+Average 1% recall: 84.02
+Average Recall: 43.24
+Mean 1% Recall @N: 84.02
+Mean Recall 43.24
