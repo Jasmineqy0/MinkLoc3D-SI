@@ -60,7 +60,7 @@ def make_eval_dataset(params: MinkLocParams):
     return dataset
 
 
-def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantization_size=None, combine_pnt=False, cross_att_pnt=False):
+def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantization_size=None, with_pnt=False, with_crosatt=False):
     # set_transform: the transform to be applied to all batch elements
     def collate_fn(data_list):
         # Constructs a batch object
@@ -120,7 +120,7 @@ def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantiza
 
             # batch = {'coords': coords, 'features': feats}
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            if combine_pnt or cross_att_pnt:
+            if with_pnt or with_crosatt:
                 batch = {'coords': coords, 'features': feats, 'clouds': batch}
             else:
                 batch = {'coords': coords, 'features': feats}
@@ -161,7 +161,8 @@ def make_dataloaders(params: MinkLocParams, debug=False):
     # added 'combine_pntvld' argument in function make_colloate_fn
     train_collate_fn = make_collate_fn(datasets['train'],  params.model_params.version, params.dataset_name,
                                        params.model_params.mink_quantization_size,
-                                       params.model_params.combine_pnt, params.model_params.cross_att_pnt)
+                                       with_pnt=params.model_params.combine_params['with_pnt'], 
+                                       with_crosatt=params.model_params.combine_params['with_crosatt'])
     #################################################
     dataloders['train'] = DataLoader(datasets['train'], batch_sampler=train_sampler, collate_fn=train_collate_fn,
                                      num_workers=params.num_workers, pin_memory=True)

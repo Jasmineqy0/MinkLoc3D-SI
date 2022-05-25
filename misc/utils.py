@@ -46,11 +46,50 @@ class ModelParams:
                 self.planes = [32, 64, 64]
 
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            self.combine_pnt = params.getboolean('combine_pnt')
-            # assert self.combine_pntvld==False
-            self.combine_way = params['combine_way']
-            self.cross_att_pnt = params.getboolean('cross_att_pnt')
-            assert ~(self.combine_pnt == True and self.cross_att_pnt == True), 'Either Combine or Cross Attention Pointnet or Neither'
+            with_pnt = params.getboolean('with_pnt')
+            with_crosatt = params.getboolean('with_crosatt')
+            assert ~(with_pnt == True and with_crosatt == True), '3 options: combine pointnet only, cross attention pointnet features or Neither'
+            
+            if with_pnt:
+                with_way = params['with_way']
+                assert with_way in ['cat', 'add']
+                before_pooling = params.getboolean('before_pooling')
+                if before_pooling:
+                    assert with_way == 'cat', 'only cat pointnet features before pooling'
+                    
+                self.combine_params = {"with_pnt": with_pnt,
+                                       "with_crosatt": with_crosatt,
+                                       "with_way": with_way,
+                                       "before_pooling": before_pooling}   
+            elif with_crosatt:
+                nhead=params.getint('nhead')
+                d_feedforward = params.getint("d_feedforward")
+                dropout = params.getint("dropout")
+                transformer_act = params['transformer_act']
+                pre_norm = params.getboolean("pre_norm")
+                attention_type = params['attention_type']
+                sa_val_has_pos_emb = params.getboolean('sa_val_has_pos_emb')
+                ca_val_has_pos_emb = params.getboolean('ca_val_has_pos_emb')
+                num_encoder_layers = params.getint('num_encoder_layers')
+                transformer_encoder_has_pos_emb = params.getboolean('transformer_encoder_has_pos_emb')
+                
+                base_params = {"with_pnt": with_pnt,
+                               "with_crosatt": with_crosatt,
+                               'nhead': nhead,
+                               "d_feedforward": d_feedforward,
+                               "dropout": dropout,
+                               "transformer_act": transformer_act,
+                               "pre_norm": pre_norm,
+                               "attention_type": attention_type,
+                               "sa_val_has_pos_emb": sa_val_has_pos_emb,
+                               "ca_val_has_pos_emb": ca_val_has_pos_emb,
+                               "num_encoder_layers": num_encoder_layers,
+                               "transformer_encoder_has_pos_emb": transformer_encoder_has_pos_emb}
+
+                self.combine_params = {}
+                self.combine_params = {** base_params, ** self.combine_params} 
+            else:
+                self.combine_params = {"with_pnt": with_pnt, "with_crosatt": with_crosatt}
             #################################################
 
             if 'layers' in params:

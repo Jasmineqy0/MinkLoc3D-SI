@@ -15,7 +15,7 @@ from models.resnet import ResNetBase
 class MinkFPN(ResNetBase):
     # Feature Pyramid Network (FPN) architecture implementation using Minkowski ResNet building blocks
     def __init__(self, in_channels, out_channels, num_top_down=1, conv0_kernel_size=5, block=BasicBlock,
-                 layers=(1, 1, 1), planes=(32, 64, 64), cross_att_pnt=False):
+                 layers=(1, 1, 1), planes=(32, 64, 64), combine_params=None):
         assert len(layers) == len(planes)
         assert 1 <= len(layers)
         assert 0 <= num_top_down <= len(layers)
@@ -29,19 +29,20 @@ class MinkFPN(ResNetBase):
         self.init_dim = planes[0]
         ResNetBase.__init__(self, in_channels, out_channels, D=3)
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        self.cross_att_pnt = cross_att_pnt
-        if cross_att_pnt:
-            d_embed = planes[0]
-            nhead = 8
-            d_feedforward = 128
-            dropout = 0
-            transformer_act = 'relu'
-            pre_norm = True
-            attention_type = 'dot_prod'
-            sa_val_has_pos_emb = True
-            ca_val_has_pos_emb = True
-            num_encoder_layers = 6
-            self.transformer_encoder_has_pos_emb = True
+        self.with_crosatt  = combine_params['with_crosatt']
+        if self.with_crosatt:
+            d_embed = planes[0] # cross attention after first layer of conv
+            
+            nhead = combine_params['nhead']
+            d_feedforward = combine_params['d_feedforward']
+            dropout = combine_params['dropout']
+            transformer_act = combine_params['transformer_act']
+            pre_norm = combine_params['pre_norm']
+            attention_type = combine_params['attention_type']
+            sa_val_has_pos_emb = combine_params['sa_val_has_pos_emb']
+            ca_val_has_pos_emb = combine_params['ca_val_has_pos_emb']
+            num_encoder_layers = combine_params['num_encoder_layers']
+            self.transformer_encoder_has_pos_emb = combine_params['transformer_encoder_has_pos_emb']
             
             self.pos_embed = PositionEmbeddingCoordsSine(3, d_embed, scale=1.0)
             
@@ -158,7 +159,7 @@ class MinkFPN(ResNetBase):
             feature_maps.append(x)
 
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        if y:
+        if self.with_crosatt:
             x = self.combine_cross_attention(x, y)
         #################################################
         

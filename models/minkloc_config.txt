@@ -2,13 +2,33 @@
 [MODEL]
 model = MinkFPN_GeM
 version = MinkLoc3D-S
-combine_pnt = False
-combine_way = cat
-cross_att_pnt = True
+#### Added & Changed features###
+## added
+# pointnet features only
+with_pnt = False
+with_way = cat
+before_pooling = True
+
+# attention features only
+with_crosatt = True
+# define attention dim by checking layers: d_embed
+nhead = 8
+d_feedforward = 128
+dropout = 0
+transformer_act = relu
+pre_norm = True
+attention_type = dot_prod
+sa_val_has_pos_emb = True
+ca_val_has_pos_emb = True
+num_encoder_layers = 6
+transformer_encoder_has_pos_emb = True
+
+## changed: dimensions of features and output
+feature_size = 256
+output_dim = 256
+######################
 mink_quantization_size = 2.5,2.0,1.875
 planes = 32,64,64
 layers = 1,1,1
 num_top_down = 1
 conv0_kernel_size = 5
-feature_size = 256
-output_dim = 256

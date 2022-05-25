@@ -16,9 +16,8 @@ def model_factory(params):
                     output_dim=params.model_params.output_dim, planes=params.model_params.planes,
                     layers=params.model_params.layers, num_top_down=params.model_params.num_top_down,
                     conv0_kernel_size=params.model_params.conv0_kernel_size,
-                    combine_pnt=params.model_params.combine_pnt,
-                    combine_way=params.model_params.combine_way,
-                    cross_att_pnt=params.model_params.cross_att_pnt)
+                    num_points=params.num_points,
+                    combine_params=params.model_params.combine_params)
         #################################################
         # model = minkloc.MinkLoc(params.model_params.model, in_channels=in_channels,
         #                         feature_size=params.model_params.feature_size,

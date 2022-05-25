@@ -3,7 +3,7 @@
 # Modified by: Kamil Zywanowski, Adam Banaszczyk, Michal Nowicki (Poznan University of Technology 2021)
 
 #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-from models.pointnet.PointNetVlad import PointNetfeat
+from models.pointnet.PointNetVlad import PointNetfeat_BfPooling, PointNetfeat_AfPooling
 #################################################
 
 import torch
@@ -14,37 +14,37 @@ import layers.pooling as pooling
 
 
 class MinkLoc(torch.nn.Module):
-    def __init__(self, model, in_channels, feature_size, output_dim, planes, layers, num_top_down, conv0_kernel_size, combine_pnt, combine_way, cross_att_pnt):
+    def __init__(self, model, in_channels, feature_size, output_dim, planes, layers, num_top_down, conv0_kernel_size, num_points, combine_params):
         super().__init__()
         
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        self.combine_pnt = combine_pnt
-        self.combine_way = combine_way
-        self.cross_att_pnt = cross_att_pnt
+        self.combine_params = combine_params
+        self.num_points = num_points
 
-        if combine_pnt:
+        if (combine_params['with_pnt'] and combine_params['before_pooling']) or (combine_params['with_crosatt']):
+            PNT_NUM_POINTS=num_points
+            PNT_GLOBAL_FEAT=True
+            PNT_FEATURE_TRANSFORM=True
+            PNT_MAX_POOL= False
+            
+            # same as output_dim for pointnet only or first layer after conv for cross attention
+            PNT_OUTPUT_DIM = feature_size if combine_params['with_pnt'] else planes[0]
+                
+            # added new args of PointNetfeat: output dim
+            self.point_net = PointNetfeat_BfPooling(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
+                                                    feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
+                                                    output_dim=PNT_OUTPUT_DIM)
+            
+        if combine_params['with_pnt'] and not combine_params['before_pooling']:
             PNT_NUM_POINTS=4096
             PNT_GLOBAL_FEAT=True
             PNT_FEATURE_TRANSFORM=True
-            # original value False
-            PNT_MAX_POOL= False
+            PNT_MAX_POOL= True # original value False
+            PNT_OUTPUT_DIM = feature_size
             
-            # add new args of PointNetfeat: feature_size
-            self.point_net = PointNetfeat(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
-                                        feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
-                                        feature_size=feature_size)
-        elif cross_att_pnt:
-            PNT_NUM_POINTS=4096
-            PNT_GLOBAL_FEAT=True
-            PNT_FEATURE_TRANSFORM=True
-            # original value False
-            PNT_MAX_POOL= False
-            CROSS_FEATURE_SIZE = 32
-            
-            self.point_net = PointNetfeat(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
-                                        feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
-                                        feature_size=CROSS_FEATURE_SIZE)
-            
+            self.point_net = PointNetfeat_AfPooling(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
+                                                    feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
+                                                    output_dim=PNT_OUTPUT_DIM)
         #################################################        
         
         self.model = model
@@ -53,7 +53,7 @@ class MinkLoc(torch.nn.Module):
         self.output_dim = output_dim        # Dimensionality of the global descriptor
         self.backbone = MinkFPN(in_channels=in_channels, out_channels=self.feature_size, num_top_down=num_top_down,
                                 conv0_kernel_size=conv0_kernel_size, layers=layers, planes=planes,
-                                cross_att_pnt=cross_att_pnt) # INCORPORATE POINTNETVLAD FEATURES
+                                combine_params=combine_params) # INCORPORATE POINTNETVLAD FEATURES
         self.n_backbone_features = output_dim
 
         if model == 'MinkFPN_Max':
@@ -81,23 +81,22 @@ class MinkLoc(torch.nn.Module):
         x = ME.SparseTensor(feats, coords)
         
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        if self.cross_att_pnt or self.combine_pnt:
-            PNT_NUM_POINTS = 4096
+        if self.combine_params['with_pnt'] or self.combine_params['with_crosatt']:
+            PNT_NUM_POINTS = self.num_points
 
             PNT_x = batch['clouds']
             PNT_x = PNT_x.to('cuda')
-            
             PNT_x = PNT_x.view((-1, 1, PNT_NUM_POINTS, 3))
             
-            PNT_coords, PNT_feats = self.point_net(PNT_x)
-            PNT_coords = PNT_coords.to('cuda')
-            PNT_feats = PNT_feats.to('cuda')
-            y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords, 
-                    coordinate_manager=x.coordinate_manager)
-            if self.cross_att_pnt:
-                x = self.backbone(x, y)
-            else:
-                x = self.backbone(x)
+            if (self.combine_params['with_pnt'] and self.combine_params['before_pooling']) or self.combine_params['with_crosatt']:
+                PNT_coords, PNT_feats = self.point_net(PNT_x)
+                PNT_coords = PNT_coords.to('cuda')
+                PNT_feats = PNT_feats.to('cuda')
+                y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords, 
+                                    coordinate_manager=x.coordinate_manager)
+                
+        if self.combine_params['with_crosatt']:
+            x = self.backbone(x, y)
         else:
             x = self.backbone(x)
         #################################################        
@@ -105,23 +104,8 @@ class MinkLoc(torch.nn.Module):
         # x = self.backbone(x)
 
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        if self.combine_pnt:
-            # PNT_NUM_POINTS = 4096
-
-            # PNT_x = batch['clouds']
-            # PNT_x = PNT_x.to('cuda')
-            
-            # PNT_x = PNT_x.view((-1, 1, PNT_NUM_POINTS, 3))
-            
-            # PNT_coords, PNT_feats = self.point_net(PNT_x)
-            # PNT_coords = PNT_coords.to('cuda')
-            # PNT_feats = PNT_feats.to('cuda')
-            
-            y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords, 
-                                coordinate_manager=x.coordinate_manager)
-            
+        if self.combine_params['with_pnt'] and self.combine_params['before_pooling']:
             # Combine Features of Pointnetvlad & MinkLoc3D-S
-            assert self.combine_way == 'cat', 'concat features only'
             x = x + y
         #################################################
 
@@ -131,6 +115,19 @@ class MinkLoc(torch.nn.Module):
         assert x.dim() == 2, 'Expected 2-dimensional tensor (batch_size,output_dim). Got {} dimensions.'.format(x.dim())
         assert x.shape[1] == self.output_dim, 'Output tensor has: {} channels. Expected: {}'.format(x.shape[1], self.output_dim)
         # x is (batch_size, output_dim) tensor
+        
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        if self.combine_params['with_pnt'] and not self.combine_params['before_pooling']:
+            PNT_x, _ = self.point_net(PNT_x)
+            
+            # Combine Features of Pointnetvlad & MinkLoc3D-S
+            if self.combine_params['with_way'] == 'add':
+                x = x + PNT_x
+                assert(x.shape[1] == self.output_dim)
+            else:
+                x = torch.cat((x, PNT_x), dim=1)
+                assert(x.shape[1] == self.output_dim * 2)
+        #################################################
         
         return x
 
