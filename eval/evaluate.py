@@ -158,7 +158,7 @@ def get_latent_vectors(model, set, device, params):
             # models without intensity
             if params.model_params.version in ['MinkLoc3D', 'MinkLoc3D-S']:
                 #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-                batch = x.view(-1, 4096, 3)
+                batch = x.view(-1, params.num_points, 3)
                 #################################################
                 coords = ME.utils.sparse_quantize(coordinates=x,
                                                   quantization_size=params.model_params.mink_quantization_size)

@@ -247,7 +247,9 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     prefix += f"cross attention: {params.model_params.combine_params['with_crosatt']}" if params.model_params.combine_params['with_crosatt'] else ""
     #################################################
     # prefix = "{}, {}, {}, epoch: {}".format(model_params_name, config_name, model_name, params.epochs)
-    export_eval_stats("experiment_results.txt",
+    if not os.path.exists(os.path.join('..', 'results')):
+        os.mkdir(os.path.join('..', 'results'))
+    export_eval_stats(os.path.join('..', 'results', "experiment_results.txt"),
                        prefix, final_eval_stats, params.dataset_name)
 
 
