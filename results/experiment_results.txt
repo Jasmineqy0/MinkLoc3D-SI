@@ -96,4 +96,14 @@ Average Recall: 75.45
 Mean 1% Recall @N: 92.24
 Mean Recall 75.45
 
+
+config_baseline.txt   : Dataset frame_5m_unnormalized, Epoch 40
+minkloc_config.txt    : Version MinkLoc3D-S,  Model model_MinkFPN_GeM_20220526_2211, to_spherical kitti
+Combine Params        : {'with_pnt': True, 'with_crosatt': False, 'with_way': 'cat', 'before_pooling': True}
+
+Average 1% recall: 90.96
+Average Recall: 65.79
+Mean 1% Recall @N: 90.96
+Mean Recall 65.79
+
  

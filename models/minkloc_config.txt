@@ -3,7 +3,7 @@
 model = MinkFPN_GeM
 version = MinkLoc3D-S
 
-with_pnt = False
+with_pnt = True
 with_way = cat
 before_pooling = True
 

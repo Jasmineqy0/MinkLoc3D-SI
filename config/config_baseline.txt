@@ -2,7 +2,7 @@
 num_points = 4096
 max_distance = 300
 dataset_name = TUM
-dataset_folder = ../../datasets/frame_5m
+dataset_folder = ../../datasets/frame_5m_unnormalized
 
 [TRAIN]
 num_workers = 4
