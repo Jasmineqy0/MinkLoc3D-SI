@@ -219,7 +219,6 @@ def to_spherical(points, dataset_name):
     return spherical_points
 
 
-@njit
 def to_spherical_me(idx, points, dataset_name):
     spherical_points = []
     for point in points:
@@ -244,7 +243,7 @@ def to_spherical_me(idx, points, dataset_name):
             # Phi calculated from the vertical axis, so (0, 180)
             phi = np.arccos(point[2] / r) * 180 / np.pi
 
-        elif dataset_name == ['KITTI', 'TUM']:
+        elif dataset_name in ['KITTI', 'TUM']:
             # HDL-64 has 0.4 deg VRes and (+2, -24.8 VFoV).
             # Phi calculated from the vertical axis, so (88, 114.8)
             # Shifted to (0, 26.8)

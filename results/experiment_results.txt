@@ -1,26 +1,3 @@
-
-config_baseline.txt   : Dataset frame_5m_unnormalized, Epoch: 40
-minkloc_config.txt    : Version MinkLoc3D-S, Model model_MinkFPN_GeM_20220526_1759, to_spherical kitti
-Combine Params        : {'with_pnt': False, 'with_crosatt': False}
-
-Average 1% recall: 85.15
-Average Recall: 65.19
-Mean 1% Recall @N: 85.15
-Mean Recall 65.19
-
-
-
-config_baseline.txt   : Dataset frame_5m_unnormalized, Epoch 40
-minkloc_config.txt    : Version MinkLoc3D, Model_MinkFPN_GeM_20220526_1809, to_spherical kitti
-Combine Params        : {'with_pnt': False, 'with_crosatt': False}
-
-Average 1% recall: 90.33
-Average Recall: 72.92
-Mean 1% Recall @N: 90.33
-Mean Recall 72.92
-
- 
-
 config_baseline.txt   : Dataset frame_5m, Epoch 40
 minkloc_config.txt    : Version MinkLoc3D,  Model model_MinkFPN_GeM_20220526_1823, to_spherical kitti
 Combine Params        : {'with_pnt': False, 'with_crosatt': False}
@@ -97,13 +74,5 @@ Mean 1% Recall @N: 92.24
 Mean Recall 75.45
 
 
-config_baseline.txt   : Dataset frame_5m_unnormalized, Epoch 40
-minkloc_config.txt    : Version MinkLoc3D-S,  Model model_MinkFPN_GeM_20220526_2211, to_spherical kitti
-Combine Params        : {'with_pnt': True, 'with_crosatt': False, 'with_way': 'cat', 'before_pooling': True}
-
-Average 1% recall: 90.96
-Average Recall: 65.79
-Mean 1% Recall @N: 90.96
-Mean Recall 65.79
 
  

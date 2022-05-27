@@ -17,11 +17,6 @@ import tqdm
 np.random.seed(0)
 random.seed(0)
 
-import sys
-import os
-REPO_FOLDER = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.append(REPO_FOLDER)
-
 from misc.utils import MinkLocParams
 from models.model_factory import model_factory
 from datasets.dataset_utils import to_spherical

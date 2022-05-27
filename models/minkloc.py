@@ -3,7 +3,7 @@
 # Modified by: Kamil Zywanowski, Adam Banaszczyk, Michal Nowicki (Poznan University of Technology 2021)
 
 #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-from models.pointnet.PointNetVlad import PointNetfeat_BfPooling, PointNetfeat_AfPooling
+from models.pointnet.PointNet import PointNetfeat_BfPooling, PointNetfeat_AfPooling
 #################################################
 
 import torch
