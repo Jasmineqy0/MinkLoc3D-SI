@@ -5,7 +5,7 @@ version = MinkLoc3D-S
 
 with_pnt = True
 with_way = cat
-before_pooling = True
+before_pooling = False
 
 with_crosatt = False
 nhead = 8
