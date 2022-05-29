@@ -76,3 +76,25 @@ Mean Recall 75.45
 
 
  
+
+config_baseline.txt   : Dataset frame_5m_unnormalized, Epoch 40
+minkloc_config.txt    : Version MinkLoc3D-S,  Model model_MinkFPN_GeM_20220529_1413 
+Combine Params        : {'with_pnt': False, 'with_crosatt': False}
+
+Average 1% recall: 89.04
+Average Recall: 65.80
+Mean 1% Recall @N: 89.04
+Mean Recall 65.80
+
+ 
+
+config_baseline.txt   : Dataset frame_5m_unnormalized, Epoch 40
+minkloc_config.txt    : Version MinkLoc3D-S,  Model model_MinkFPN_GeM_20220529_1423 
+Combine Params        : {'with_pnt': True, 'with_crosatt': False, 'with_way': 'cat', 'before_pooling': True}
+
+Average 1% recall: 87.73
+Average Recall: 58.03
+Mean 1% Recall @N: 87.73
+Mean Recall 58.03
+
+ 

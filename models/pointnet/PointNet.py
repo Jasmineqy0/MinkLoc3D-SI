@@ -1,4 +1,5 @@
 from __future__ import print_function
+import MinkowskiEngine as ME
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -127,7 +128,7 @@ class PointNetfeat(nn.Module):
                 return torch.cat([x, pointfeat], 1), trans
             
 class PointNetfeat_BfPooling(nn.Module):
-    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=256):
+    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=1024):
         super(PointNetfeat_BfPooling, self).__init__()
         self.stn = STN3d(num_points=num_points, k=3, use_bn=False)
         self.feature_trans = STN3d(num_points=num_points, k=64, use_bn=False)
@@ -137,25 +138,35 @@ class PointNetfeat_BfPooling(nn.Module):
         self.conv3 = torch.nn.Conv2d(64, 64, (1, 1))
         self.conv4 = torch.nn.Conv2d(64, 128, (1, 1))
         # self.conv5 = torch.nn.Conv2d(128, 1024, (1, 1))
-        self.conv5 = torch.nn.Conv2d(128, output_dim, (1, 1)) # change the ouput feature of last conv layer
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        self.conv5 = torch.nn.Conv2d(128, output_dim, (1, 1))
+        self.output_dim = output_dim
+        #################################################
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(64)
         self.bn4 = nn.BatchNorm2d(128)
         # self.bn5 = nn.BatchNorm2d(1024)
-        self.bn5 = nn.BatchNorm2d(output_dim) # change the ouput feature of last conv layer
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        self.bn5 = nn.BatchNorm2d(output_dim)
+        #################################################
         self.mp1 = torch.nn.MaxPool2d((num_points, 1), 1)
         self.num_points = num_points
         self.global_feat = global_feat
         self.max_pool = max_pool
 
     def forward(self, x):
-        PNT_coords = []
-        for idx, i in enumerate(torch.squeeze(x, dim=1)):
-            PNT_coords.append(to_spherical_me(idx, i.cpu().numpy(), 'TUM'))
-        PNT_coords = torch.tensor(PNT_coords)
-        
         batchsize = x.size()[0]
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        coords = []
+        reserved_rows = []
+        for idx in range(batchsize):
+            # Convert coordinates to spherical, return [batch_idx, r, theta, phi] with added batch_idx for later conversion of sparse tensor
+            spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
+            coords.append(torch.tensor(spherical_e, dtype=torch.float))
+            reserved_rows += batch_reserved_rows
+        coords = ME.utils.batched_coordinates(coords)
+        #################################################
         trans = self.stn(x)
         x = torch.matmul(torch.squeeze(x), trans)
         x = x.view(batchsize, 1, -1, 3)
@@ -177,6 +188,12 @@ class PointNetfeat_BfPooling(nn.Module):
         x = F.relu(self.bn4(self.conv4(x)))
         x = self.bn5(self.conv5(x))
         if not self.max_pool:
+            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+            feats = x.view(-1, self.output_dim)
+            feats = feats[reserved_rows]
+            # return a sparse tensor with pointnet features of all points
+            return coords, feats
+            #################################################
             return x
         else:
             x = self.mp1(x)

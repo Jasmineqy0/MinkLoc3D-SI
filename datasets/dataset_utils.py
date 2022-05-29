@@ -205,7 +205,7 @@ def to_spherical(points, dataset_name):
             # Phi calculated from the vertical axis, so (0, 180)
             phi = np.arccos(point[2] / r) * 180 / np.pi
 
-        elif dataset_name == ['KITTI', 'TUM']:
+        elif dataset_name in ['KITTI', 'TUM']:
             # HDL-64 has 0.4 deg VRes and (+2, -24.8 VFoV).
             # Phi calculated from the vertical axis, so (88, 114.8)
             # Shifted to (0, 26.8)
@@ -219,11 +219,18 @@ def to_spherical(points, dataset_name):
     return spherical_points
 
 
-def to_spherical_me(idx, points, dataset_name):
+@njit
+def to_spherical_me(points, dataset_name, batch_idx):
     spherical_points = []
-    for point in points:
-        # if (np.abs(point[:3]) < 1e-4).all():
-        #     continue
+    batch_reserved_rows = []
+    for idx in range(points.shape[0]):
+        point = points[idx]
+        
+        if (np.abs(point[:3]) < 1e-4).all():
+            continue
+        
+        batch_reserved_rows.append(points.shape[0] * batch_idx + idx)
+        
         r = np.linalg.norm(point[:3])
 
         # Theta is calculated as an angle measured from the y-axis towards the x-axis
@@ -250,8 +257,8 @@ def to_spherical_me(idx, points, dataset_name):
             phi = (np.arccos(point[2] / r) * 180 / np.pi) - 88
 
         if point.shape[-1] == 4:
-            spherical_points.append([idx, r, theta, phi, point[3]])
+            spherical_points.append([ r, theta, phi, point[3]])
         else:
-            spherical_points.append([idx, r, theta, phi])
+            spherical_points.append([ r, theta, phi])
 
-    return spherical_points
+    return spherical_points, batch_reserved_rows 
