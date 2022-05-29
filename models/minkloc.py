@@ -80,6 +80,8 @@ class MinkLoc(torch.nn.Module):
 
         x = ME.SparseTensor(feats, coords)
         
+        # x = self.backbone(x)
+        
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
         if self.combine_params['with_pnt'] or self.combine_params['with_crosatt']:
             PNT_NUM_POINTS = self.num_points
@@ -92,8 +94,7 @@ class MinkLoc(torch.nn.Module):
                 PNT_coords, PNT_feats = self.point_net(PNT_x)
                 PNT_coords = PNT_coords.to('cuda')
                 PNT_feats = PNT_feats.to('cuda')
-                y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords, 
-                                    coordinate_manager=x.coordinate_manager)
+                y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords)
                 
         if self.combine_params['with_crosatt']:
             x = self.backbone(x, y)
@@ -106,7 +107,7 @@ class MinkLoc(torch.nn.Module):
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
         if self.combine_params['with_pnt'] and self.combine_params['before_pooling']:
             # Combine Features of Pointnetvlad & MinkLoc3D-S
-            x = x + y
+            y = self.pooling(y)
         #################################################
 
         # x is (num_points, n_features) tensor
@@ -129,7 +130,7 @@ class MinkLoc(torch.nn.Module):
                 assert(x.shape[1] == self.output_dim * 2)
         #################################################
         
-        return x
+        return x + y
 
     def print_info(self):
         print('Model class: MinkLoc')

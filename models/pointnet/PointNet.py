@@ -161,7 +161,7 @@ class PointNetfeat_BfPooling(nn.Module):
         coords = []
         reserved_rows = []
         for idx in range(batchsize):
-            # Convert coordinates to spherical, return [batch_idx, r, theta, phi] with added batch_idx for later conversion of sparse tensor
+            # Convert coordinates to spherical, return [ r, theta, phi] with added batch_idx for later conversion of sparse tensor
             spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
             coords.append(torch.tensor(spherical_e, dtype=torch.float))
             reserved_rows += batch_reserved_rows
