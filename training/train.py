@@ -3,6 +3,7 @@
 
 import argparse
 import torch
+import os
 
 from training.trainer import do_train
 from misc.utils import MinkLocParams

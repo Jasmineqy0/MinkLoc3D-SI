@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 import numpy as np
 import torch
+from torch import nn
 import pickle
 import tqdm
 import pathlib
@@ -74,7 +75,13 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
     # Move the model to the proper device before configuring the optimizer
     if torch.cuda.is_available():
-        device = "cuda"
+        # os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+        # os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+        device = torch.device("cuda:1")
+        torch.cuda.set_device(device)
+        # device = torch.device("cuda:1,2")
+        # model = nn.DataParallel(model, device_ids=[0,1])
+        # model = nn.DataParallel(model)
         model.to(device)
     else:
         device = "cpu"
@@ -157,6 +164,7 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
                 with torch.set_grad_enabled(phase == 'train'):
                     # Compute embeddings of all elements
+                    torch.autograd.set_detect_anomaly(True)
                     embeddings = model(batch)
                     loss, temp_stats, _ = loss_fn(embeddings, positives_mask, negatives_mask)
 

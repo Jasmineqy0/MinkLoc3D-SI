@@ -103,7 +103,7 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-base_path = "../../IntensityOxford/"
+base_path = "../../datasets/IntensityOxford/"
 
 # For Oxford
 folders = []

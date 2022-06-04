@@ -219,7 +219,7 @@ def to_spherical(points, dataset_name):
     return spherical_points
 
 
-@njit
+# @njit
 def to_spherical_me(points, dataset_name, batch_idx):
     spherical_points = []
     batch_reserved_rows = []

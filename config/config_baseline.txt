@@ -1,18 +1,18 @@
 [DEFAULT]
 num_points = 4096
-max_distance = 300
+max_distance = 100
 dataset_name = TUM
-dataset_folder = ../../datasets/frame_5m_unnormalized
+dataset_folder = ../../datasets/frame_5m
 
 [TRAIN]
 num_workers = 4
-batch_size = 16
-batch_size_limit = 158
+batch_size = 6
+batch_size_limit = 6
 batch_expansion_rate = 1.4
 batch_expansion_th = 0.7
 
 lr = 1e-3
-epochs = 40
+epochs = 1
 scheduler_milestones = 30
 
 aug_mode = 1

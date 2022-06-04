@@ -3,13 +3,13 @@
 model = MinkFPN_GeM
 version = MinkLoc3D-S
 
-with_pnt = True
+with_pnt = False
 with_way = cat
 before_pooling = True
 
-with_crosatt = False
-nhead = 8
-d_feedforward = 128
+with_crosatt = True
+nhead = 2
+d_feedforward = 64
 dropout = 0
 transformer_act = relu
 pre_norm = True

@@ -7,10 +7,28 @@ from models.pointnet.PointNet import PointNetfeat_BfPooling, PointNetfeat_AfPool
 #################################################
 
 import torch
+from torch import nn
+import torch.nn.functional as F
 import MinkowskiEngine as ME
 from models.minkfpn import MinkFPN
 from models.netvlad import MinkNetVladWrapper
 import layers.pooling as pooling
+
+class PNT_GeM(nn.Module):
+    def __init__(self, p=3, eps=1e-6, kernel=(4096,1)):
+        super(PNT_GeM,self).__init__()
+        self.p = nn.Parameter(torch.ones(1)*p)
+        self.eps = eps
+        self.kernel = kernel
+
+    def forward(self, x):
+        return self.gem(x, p=self.p, eps=self.eps)
+        
+    def gem(self, x, p=3, eps=1e-6):
+        return F.avg_pool2d(x.clamp(min=eps).pow(p), kernel_size=self.kernel).pow(1./p)
+        
+    def __repr__(self):
+        return self.__class__.__name__ + '(' + 'p=' + '{:.4f}'.format(self.p.data.tolist()[0]) + ', ' + 'eps=' + str(self.eps) + ')'
 
 
 class MinkLoc(torch.nn.Module):
@@ -34,6 +52,8 @@ class MinkLoc(torch.nn.Module):
             self.point_net = PointNetfeat_BfPooling(num_points=PNT_NUM_POINTS, global_feat=PNT_GLOBAL_FEAT,
                                                     feature_transform=PNT_FEATURE_TRANSFORM, max_pool=PNT_MAX_POOL,
                                                     output_dim=PNT_OUTPUT_DIM)
+            if combine_params['with_pnt']:
+                self.pnt_pooling = PNT_GeM()
             
         if combine_params['with_pnt'] and not combine_params['before_pooling']:
             PNT_NUM_POINTS=4096
@@ -94,21 +114,15 @@ class MinkLoc(torch.nn.Module):
                 PNT_coords, PNT_feats = self.point_net(PNT_x)
                 PNT_coords = PNT_coords.to('cuda')
                 PNT_feats = PNT_feats.to('cuda')
-                y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords)
+                # y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords)
                 
         if self.combine_params['with_crosatt']:
-            x = self.backbone(x, y)
+            x = self.backbone(x, PNT_coords, PNT_feats)
         else:
             x = self.backbone(x)
         #################################################        
         
         # x = self.backbone(x)
-
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        if self.combine_params['with_pnt'] and self.combine_params['before_pooling']:
-            # Combine Features of Pointnetvlad & MinkLoc3D-S
-            y = self.pooling(y)
-        #################################################
 
         # x is (num_points, n_features) tensor
         assert x.shape[1] == self.feature_size, 'Backbone output tensor has: {} channels. Expected: {}'.format(x.shape[1], self.feature_size)
@@ -130,7 +144,15 @@ class MinkLoc(torch.nn.Module):
                 assert(x.shape[1] == self.output_dim * 2)
         #################################################
         
-        return x + y
+        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        if self.combine_params['with_pnt'] and self.combine_params['before_pooling']:
+            # # Combine Features of Pointnetvlad & MinkLoc3D-S
+            # y = self.pooling(y)
+            y = self.pnt_pooling(PNT_feats.view(-1, 4096, self.feature_size)).view(-1, self.feature_size)
+            x = x + y
+        #################################################
+        
+        return x
 
     def print_info(self):
         print('Model class: MinkLoc')

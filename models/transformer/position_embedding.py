@@ -37,7 +37,7 @@ class PositionEmbeddingCoordsSine(nn.Module):
         assert xyz.shape[-1] == self.n_dim
 
         dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=xyz.device)
-        dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode='trunc') / self.num_pos_feats)
+        dim_t = self.temperature ** (2 * torch.div(dim_t, 2).trunc() / self.num_pos_feats)
 
         xyz = xyz * self.scale
         pos_divided = xyz.unsqueeze(-1) / dim_t
