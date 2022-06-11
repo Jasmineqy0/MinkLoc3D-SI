@@ -67,6 +67,7 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     print('Model name: {}'.format(model_name))
     weights_path = create_weights_folder()
     model_pathname = os.path.join(weights_path, model_name)
+    pathlib.Path(model_pathname).mkdir(parents=False, exist_ok=True)
     if hasattr(model, 'print_info'):
         model.print_info()
     else:
@@ -219,25 +220,32 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
                 if rnz < params.batch_expansion_th:
                     dataloaders['train'].batch_sampler.expand_batch()
 
-    print('')
+        print('')
 
-    # Save final model weights
-    final_model_path = model_pathname + '_final.pth'
-    torch.save(model.state_dict(), final_model_path)
+        # Save final model weights
+        final_model_path = os.path.join(model_pathname, f'epoch{epoch}.pth')
+        torch.save(model.state_dict(), final_model_path)
 
-    stats = {'train_stats': stats, 'params': params}
-
-    # Evaluate the final model
-    model.eval()
-    final_eval_stats = evaluate(model, device, params)
-    print('Final model:')
-    print_eval_stats(final_eval_stats)
-    stats['eval'] = {'final': final_eval_stats}
-    print('')
-
+        # Evaluate the final model
+        model.eval()
+        with torch.no_grad():
+            final_eval_stats = evaluate(model, device, params)
+        print(f'\nEpoch{epoch} model:')
+        print_eval_stats(final_eval_stats)
+        stats['eval'].append(final_eval_stats)
+        print('')
+        for database_name in final_eval_stats:
+            nz_metric1 = {'eval': final_eval_stats[database_name]['ave_one_percent_recall'].item()}
+            nz_metric2 = {'eval': final_eval_stats[database_name]['ave_recall'][0].item()}
+            writer.add_scalars('Mean recall', nz_metric2, epoch)
+            writer.add_scalars('One percent recall', nz_metric1, epoch)
+            writer.flush()
+            
     # Pickle training stats and parameters
-    pickle_path = model_pathname + '_stats.pickle'
-    pickle.dump(stats, open(pickle_path, "wb"))
+    pickle_path = os.path.join(model_pathname, f'stats_epoch{epoch}.pickle')
+    pickle.dump(stats, open(pickle_path, "wb"))   
+    stats = {'train_stats': stats, 'params': params}
+        
 
     # Append key experimental metrics to experiment summary file
     model_params_name = os.path.split(params.model_params.model_params_path)[1]

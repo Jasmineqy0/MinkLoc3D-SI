@@ -181,3 +181,14 @@ Combine Params        : {'with_pnt': False, 'with_crosatt': False}
 Mean Recall 36.52
 
  
+
+config_baseline.txt   : Dataset frame_5m, Epoch 2
+minkloc_config.txt    : Version MinkLoc3D-S,  Model model_MinkFPN_GeM_20220611_1102 
+Combine Params        : {'with_pnt': False, 'with_crosatt': False}
+
+Average 1% recall: 12.90
+Average Recall: 3.23
+Mean 1% Recall @N: 12.90
+Mean Recall 3.23
+
+ 

@@ -71,7 +71,7 @@ def evaluate_dataset(model, device, params, database_sets, query_sets, log=False
     for set in tqdm.tqdm(database_sets):
         database_embeddings.append(get_latent_vectors(model, set, device, params))
 
-    print(f"Extracting query sets embeddings")
+    print(f"\nExtracting query sets embeddings")
     for set in tqdm.tqdm(query_sets):
         query_embeddings.append(get_latent_vectors(model, set, device, params))
 
