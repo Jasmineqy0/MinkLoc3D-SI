@@ -3,6 +3,7 @@
 
 import argparse
 import torch
+import os
 
 from training.trainer import do_train
 from misc.utils import MinkLocParams
@@ -29,6 +30,9 @@ if __name__ == '__main__':
 
     if args.debug:
         torch.autograd.set_detect_anomaly(True)
+        
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ['CUDA_VISIBLE_DEVICE'] = "1"
 
     dataloaders = make_dataloaders(params, debug=args.debug)
     do_train(dataloaders, params, debug=args.debug, visualize=args.visualize)

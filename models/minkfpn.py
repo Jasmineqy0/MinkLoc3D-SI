@@ -108,13 +108,13 @@ class MinkFPN(ResNetBase):
         x = list(torch.split(x, seq))
         return x
     
-    def combine_cross_attention(self, x, y):
+    def combine_cross_attention(self, x, y_c, y_f):
         x_batch_feat_size = self.batch_feat_size(x.C)
-        y_batch_feat_size = self.batch_feat_size(y.C)
+        y_batch_feat_size = self.batch_feat_size(y_c)
         
         x_pe = self.batch_tolist(self.pos_embed(x.C[:, 1:]), x_batch_feat_size)
-        y_pe = self.batch_tolist(self.pos_embed(y.C[:, 1:]), y_batch_feat_size)
-        y_feats_un = self.batch_tolist(y.F, y_batch_feat_size)
+        y_pe = self.batch_tolist(self.pos_embed(y_c[:, 1:]), y_batch_feat_size)
+        y_feats_un = self.batch_tolist(y_f, y_batch_feat_size)
         x_feats_un = self.batch_tolist(x.F, x_batch_feat_size)
 
         x_pe_padded, _, _ = pad_sequence(x_pe)
@@ -136,19 +136,21 @@ class MinkFPN(ResNetBase):
         x_feats_cond = torch.squeeze(x_feats_cond, dim=0)
         y_feats_cond = torch.squeeze(y_feats_cond, dim=0)
         x_feats_list = unpad_sequences(x_feats_cond, x_batch_feat_size)
-        y_feats_list = unpad_sequences(y_feats_cond, y_batch_feat_size)
+        # y_feats_list = unpad_sequences(y_feats_cond, y_batch_feat_size)
         
         x_feats = torch.vstack(x_feats_list)
-        y_feats = torch.vstack(y_feats_list)
+        # y_feats = torch.vstack(y_feats_list)
         
-        x =  ME.SparseTensor(coordinates=x.C, features=x_feats)
-        y =  ME.SparseTensor(coordinates=y.C, features=y_feats, coordinate_manager=x.coordinate_manager)
-        x = x + y
+        # x =  ME.SparseTensor(coordinates=x.C, features=x_feats)
+        # y =  ME.SparseTensor(coordinates=y.C, features=y_feats, coordinate_manager=x.coordinate_manager)
+        # x = x + y
+        x = ME.SparseTensor(coordinates=x.C, features=x_feats)
+        # x.F = x_feats
         
         return x
 #################################################
 
-    def forward(self, x, y=None):
+    def forward(self, x, y_c=None, y_f=None):
         # *** BOTTOM-UP PASS ***
         # First bottom-up convolution is special (with bigger stride)
         feature_maps = []
@@ -160,7 +162,7 @@ class MinkFPN(ResNetBase):
 
         #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
         if self.with_crosatt:
-            x = self.combine_cross_attention(x, y)
+            x = self.combine_cross_attention(x, y_c, y_f)
         #################################################
         
         # BOTTOM-UP PASS

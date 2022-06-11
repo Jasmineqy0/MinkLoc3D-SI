@@ -10,7 +10,7 @@ import random
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-base_path = "../../IntensityOxford/"
+base_path = "../../datasets/IntensityOxford/"
 
 runs_folder = "runs/"
 filename = "pointcloud_locations_20m_10overlap.csv"

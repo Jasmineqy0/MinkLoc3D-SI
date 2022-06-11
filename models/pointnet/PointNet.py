@@ -162,9 +162,10 @@ class PointNetfeat_BfPooling(nn.Module):
         reserved_rows = []
         for idx in range(batchsize):
             # Convert coordinates to spherical, return [ r, theta, phi] with added batch_idx for later conversion of sparse tensor
-            spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
-            coords.append(torch.tensor(spherical_e, dtype=torch.float))
-            reserved_rows += batch_reserved_rows
+            # spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
+            # coords.append(torch.tensor(spherical_e, dtype=torch.float))
+            # reserved_rows += batch_reserved_rows
+            coords.append(torch.squeeze(x, dim=1)[idx])
         coords = ME.utils.batched_coordinates(coords)
         #################################################
         trans = self.stn(x)
@@ -190,7 +191,7 @@ class PointNetfeat_BfPooling(nn.Module):
         if not self.max_pool:
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
             feats = x.view(-1, self.output_dim)
-            feats = feats[reserved_rows]
+            # feats = feats[reserved_rows]
             # return a sparse tensor with pointnet features of all points
             return coords, feats
             #################################################

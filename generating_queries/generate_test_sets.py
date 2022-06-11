@@ -103,7 +103,7 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
 
 ###Building database and query files for evaluation
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-base_path = "../../benchmark_datasets/"
+base_path = "/home/xiayan/testdir/datasets/benchmark_datasets/"
 
 #For Oxford
 folders=[]
