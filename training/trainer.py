@@ -76,7 +76,7 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
     # Move the model to the proper device before configuring the optimizer
     if torch.cuda.is_available():
-        device = torch.device("cuda:3")
+        device = torch.device("cuda:0")
         torch.cuda.set_device(device)
         model.to(device)
     else:
@@ -242,10 +242,9 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
             writer.flush()
             
     # Pickle training stats and parameters
-    pickle_path = os.path.join(model_pathname, f'stats_epoch{epoch}.pickle')
+    pickle_path = os.path.join(model_pathname, 'stats_final.pickle')
     pickle.dump(stats, open(pickle_path, "wb"))   
     stats = {'train_stats': stats, 'params': params}
-        
 
     # Append key experimental metrics to experiment summary file
     model_params_name = os.path.split(params.model_params.model_params_path)[1]
