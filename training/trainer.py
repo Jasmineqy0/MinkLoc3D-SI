@@ -77,7 +77,11 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     if torch.cuda.is_available():
         # os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
         # os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+<<<<<<< HEAD
         device = torch.device("cuda:3")
+=======
+        device = torch.device("cuda:1")
+>>>>>>> 39d7d15fab311289a92936e36d2d40419f9c8084
         torch.cuda.set_device(device)
         # device = torch.device("cuda:1,2")
         # model = nn.DataParallel(model, device_ids=[0,1])

@@ -6,13 +6,18 @@ dataset_folder = ../../datasets/frame_5m
 
 [TRAIN]
 num_workers = 4
+<<<<<<< HEAD
 batch_size = 16
 batch_size_limit = 256
+=======
+batch_size = 6
+batch_size_limit = 6
+>>>>>>> 39d7d15fab311289a92936e36d2d40419f9c8084
 batch_expansion_rate = 1.4
 batch_expansion_th = 0.7
 
 lr = 1e-3
-epochs = 40
+epochs = 1
 scheduler_milestones = 30
 
 aug_mode = 1
