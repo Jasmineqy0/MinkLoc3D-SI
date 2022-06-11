@@ -162,8 +162,6 @@ Average 1% recall: 75.51
 Average Recall: 49.05
 Mean 1% Recall @N: 75.51
 Mean Recall 49.05
-
-<<<<<<< HEAD
  
 
 config_baseline.txt   : Dataset benchmark_datasets, Epoch 1
@@ -182,6 +180,4 @@ Combine Params        : {'with_pnt': False, 'with_crosatt': False}
 , 47.10, 28.64, 59.67, 42.98, 51.34, 33.46, 49.99, 41.02Mean 1% Recall @N: 52.03
 Mean Recall 36.52
 
-=======
->>>>>>> 39d7d15fab311289a92936e36d2d40419f9c8084
  
