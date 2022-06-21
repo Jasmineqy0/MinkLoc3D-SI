@@ -5,6 +5,9 @@ import argparse
 import torch
 import os
 
+import sys 
+sys.path.append(os.path.dirname(os.getcwd()))
+
 from training.trainer import do_train
 from misc.utils import MinkLocParams
 from datasets.dataset_utils import make_dataloaders

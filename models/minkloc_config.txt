@@ -7,7 +7,7 @@ with_pnt = False
 with_way = cat
 before_pooling = True
 
-with_crosatt = False
+with_crosatt = True
 nhead = 2
 d_feedforward = 64
 dropout = 0
