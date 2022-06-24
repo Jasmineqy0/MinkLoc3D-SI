@@ -6,8 +6,8 @@ dataset_folder = ../../datasets/benchmark_datasets
 
 [TRAIN]
 num_workers = 4
-batch_size = 16
-batch_size_limit = 16
+batch_size = 10
+batch_size_limit = 10
 batch_expansion_rate = 1.4
 batch_expansion_th = 0.7
 
