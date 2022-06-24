@@ -220,16 +220,15 @@ def to_spherical(points, dataset_name):
 
 
 # @njit
-def to_spherical_me(points, dataset_name, batch_idx):
+def to_spherical_me(points, dataset_name):
     spherical_points = []
-    batch_reserved_rows = []
     for idx in range(points.shape[0]):
         point = points[idx]
         
         if (np.abs(point[:3]) < 1e-4).all():
+            spherical_points.append([np.linalg.norm(point[:3]), np.arctan2(point[1], point[0]) * 180 / np.pi, 0])
             continue
         
-        batch_reserved_rows.append(points.shape[0] * batch_idx + idx)
         
         r = np.linalg.norm(point[:3])
 
@@ -257,8 +256,8 @@ def to_spherical_me(points, dataset_name, batch_idx):
             phi = (np.arccos(point[2] / r) * 180 / np.pi) - 88
 
         if point.shape[-1] == 4:
-            spherical_points.append([ r, theta, phi, point[3]])
+            spherical_points.append([r, theta, phi, point[3]])
         else:
-            spherical_points.append([ r, theta, phi])
+            spherical_points.append([r, theta, phi])
 
-    return spherical_points, batch_reserved_rows 
+    return spherical_points

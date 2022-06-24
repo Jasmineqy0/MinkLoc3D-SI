@@ -8,7 +8,7 @@ with_way = cat
 before_pooling = True
 
 with_crosatt = True
-nhead = 2
+nhead = 4
 d_feedforward = 64
 dropout = 0
 transformer_act = relu
@@ -16,7 +16,7 @@ pre_norm = True
 attention_type = dot_prod
 sa_val_has_pos_emb = True
 ca_val_has_pos_emb = True
-num_encoder_layers = 6
+num_encoder_layers = 3
 transformer_encoder_has_pos_emb = True
 
 feature_size = 256

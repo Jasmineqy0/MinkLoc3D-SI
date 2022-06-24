@@ -165,8 +165,11 @@ class PointNetfeat_BfPooling(nn.Module):
             # spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
             # coords.append(torch.tensor(spherical_e, dtype=torch.float))
             # reserved_rows += batch_reserved_rows
-            coords.append(torch.squeeze(x, dim=1)[idx])
-        coords = ME.utils.batched_coordinates(coords)
+            coord = torch.squeeze(x, dim=1)[idx].cpu().numpy()
+            coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=x.dtype)
+            coords.append(coord)
+        x = torch.vstack(coords).to(x.device).reshape([batchsize, 1, -1, 3])
+        coords = coords = ME.utils.batched_coordinates(coords)
         #################################################
         trans = self.stn(x)
         x = torch.matmul(torch.squeeze(x), trans)

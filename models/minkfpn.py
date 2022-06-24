@@ -8,7 +8,7 @@ import MinkowskiEngine as ME
 from MinkowskiEngine.modules.resnet_block import BasicBlock
 from typing import List
 from models.transformer.seq_manipulation import pad_sequence, unpad_sequences
-from models.transformer.position_embedding import PositionEmbeddingCoordsSine
+from models.transformer.position_embedding import PositionEmbeddingLearned
 from models.transformer.transformers import TransformerCrossEncoderLayer, TransformerCrossEncoder
 from models.resnet import ResNetBase
 
@@ -44,7 +44,7 @@ class MinkFPN(ResNetBase):
             num_encoder_layers = combine_params['num_encoder_layers']
             self.transformer_encoder_has_pos_emb = combine_params['transformer_encoder_has_pos_emb']
             
-            self.pos_embed = PositionEmbeddingCoordsSine(3, d_embed, scale=1.0)
+            self.pos_embed = PositionEmbeddingLearned(3, d_embed)
             
             encoder_layer = TransformerCrossEncoderLayer(
                 d_embed, nhead, d_feedforward, dropout,
@@ -112,8 +112,8 @@ class MinkFPN(ResNetBase):
         x_batch_feat_size = self.batch_feat_size(x.C)
         y_batch_feat_size = self.batch_feat_size(y_c)
         
-        x_pe = self.batch_tolist(self.pos_embed(x.C[:, 1:]), x_batch_feat_size)
-        y_pe = self.batch_tolist(self.pos_embed(y_c[:, 1:]), y_batch_feat_size)
+        x_pe = self.batch_tolist(self.pos_embed(x.C[:, 1:].to(torch.float)), x_batch_feat_size)
+        y_pe = self.batch_tolist(self.pos_embed(y_c[:, 1:].to(torch.float)), y_batch_feat_size)
         y_feats_un = self.batch_tolist(y_f, y_batch_feat_size)
         x_feats_un = self.batch_tolist(x.F, x_batch_feat_size)
 
