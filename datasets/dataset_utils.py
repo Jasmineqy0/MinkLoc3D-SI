@@ -118,10 +118,18 @@ def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantiza
                 coords = ME.utils.batched_coordinates(coords)
                 feats = torch.cat(feats, dim=0)
 
-            # batch = {'coords': coords, 'features': feats}
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
             if with_pnt or with_crosatt:
-                batch = {'coords': coords, 'features': feats, 'clouds': batch}
+                
+                batchsize = batch.size()[0]
+                pnt_coords = []
+                for idx in range(batchsize):
+                    coord = batch[idx].numpy()
+                    coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=batch.dtype)
+                    pnt_coords.append(coord)
+                pnt_coords = torch.vstack(pnt_coords).reshape([batchsize, 1, -1, 3])
+                
+                batch = {'coords': coords, 'features': feats, 'pnt_coords': pnt_coords}
             else:
                 batch = {'coords': coords, 'features': feats}
             #################################################

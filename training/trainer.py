@@ -76,7 +76,7 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
     # Move the model to the proper device before configuring the optimizer
     if torch.cuda.is_available():
-        device = torch.device("cuda:3")
+        device = torch.device("cuda:1")
         torch.cuda.set_device(device)
         model.to(device)
     else:

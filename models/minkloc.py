@@ -106,21 +106,22 @@ class MinkLoc(torch.nn.Module):
         if self.combine_params['with_pnt'] or self.combine_params['with_crosatt']:
             PNT_NUM_POINTS = self.num_points
 
-            PNT_x = batch['clouds']
-            PNT_x = PNT_x.to('cuda')
-            PNT_x = PNT_x.view((-1, 1, PNT_NUM_POINTS, 3))
+            PNT_x = batch['pnt_coords']
             
             if (self.combine_params['with_pnt'] and self.combine_params['before_pooling']) or self.combine_params['with_crosatt']:
-                PNT_coords, PNT_feats = self.point_net(PNT_x)
-                PNT_coords = PNT_coords.to('cuda')
-                PNT_feats = PNT_feats.to('cuda')
+                PNT_feats = self.point_net(PNT_x)
                 # y = ME.SparseTensor(features=PNT_feats, coordinates=PNT_coords)
                 
         if self.combine_params['with_crosatt']:
+            
+            PNT_x = PNT_x.squeeze(dim=1)
+            PNT_x_list = [item for _, item in enumerate(PNT_x)]
+            PNT_coords = ME.utils.batched_coordinates(PNT_x_list).to(PNT_x.device)
+            
             x = self.backbone(x, PNT_coords, PNT_feats)
         else:
             x = self.backbone(x)
-        #################################################        
+        #################################################          
         
         # x = self.backbone(x)
 

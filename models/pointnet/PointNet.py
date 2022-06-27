@@ -157,20 +157,20 @@ class PointNetfeat_BfPooling(nn.Module):
 
     def forward(self, x):
         batchsize = x.size()[0]
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        coords = []
-        reserved_rows = []
-        for idx in range(batchsize):
-            # Convert coordinates to spherical, return [ r, theta, phi] with added batch_idx for later conversion of sparse tensor
-            # spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
-            # coords.append(torch.tensor(spherical_e, dtype=torch.float))
-            # reserved_rows += batch_reserved_rows
-            coord = torch.squeeze(x, dim=1)[idx].cpu().numpy()
-            coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=x.dtype)
-            coords.append(coord)
-        x = torch.vstack(coords).to(x.device).reshape([batchsize, 1, -1, 3])
-        coords = coords = ME.utils.batched_coordinates(coords)
-        #################################################
+        # #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        # coords = []
+        # reserved_rows = []
+        # for idx in range(batchsize):
+        #     # Convert coordinates to spherical, return [ r, theta, phi] with added batch_idx for later conversion of sparse tensor
+        #     # spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
+        #     # coords.append(torch.tensor(spherical_e, dtype=torch.float))
+        #     # reserved_rows += batch_reserved_rows
+        #     coord = torch.squeeze(x, dim=1)[idx].cpu().numpy()
+        #     coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=x.dtype)
+        #     coords.append(coord)
+        # x = torch.vstack(coords).to(x.device).reshape([batchsize, 1, -1, 3])
+        # coords = ME.utils.batched_coordinates(coords)
+        # #################################################
         trans = self.stn(x)
         x = torch.matmul(torch.squeeze(x), trans)
         x = x.view(batchsize, 1, -1, 3)
@@ -196,7 +196,7 @@ class PointNetfeat_BfPooling(nn.Module):
             feats = x.view(-1, self.output_dim)
             # feats = feats[reserved_rows]
             # return a sparse tensor with pointnet features of all points
-            return coords, feats
+            return feats
             #################################################
             return x
         else:
