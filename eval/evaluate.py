@@ -19,7 +19,7 @@ random.seed(0)
 
 from misc.utils import MinkLocParams
 from models.model_factory import model_factory
-from datasets.dataset_utils import to_spherical
+from datasets.dataset_utils import to_spherical, to_spherical_me
 
 DEBUG = False
 
@@ -176,7 +176,17 @@ def get_latent_vectors(model, set, device, params):
             # batch = {'coords': bcoords, 'features': feats}
             #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
             if params.model_params.combine_params['with_pnt'] or params.model_params.combine_params['with_crosatt']:
-                batch = {'coords': bcoords, 'features': feats, 'clouds': batch}
+                
+                batchsize = batch.size()[0]
+                pnt_coords = []
+                for idx in range(batchsize):
+                    coord = batch[idx].numpy()
+                    coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=batch.dtype)
+                    pnt_coords.append(coord)
+                pnt_coords = torch.vstack(pnt_coords).reshape([batchsize, 1, -1, 3])
+                
+                batch = {'coords': bcoords, 'features': feats, 'pnt_coords': pnt_coords}
+                
             else:
                 batch = {'coords': bcoords, 'features': feats}
             #################################################
