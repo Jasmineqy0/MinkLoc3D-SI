@@ -183,7 +183,7 @@ def get_latent_vectors(model, set, device, params):
                     coord = batch[idx].numpy()
                     coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=batch.dtype)
                     pnt_coords.append(coord)
-                pnt_coords = torch.vstack(pnt_coords).reshape([batchsize, 1, -1, 3])
+                pnt_coords = torch.vstack(pnt_coords).reshape([batchsize, 1, -1, 3]).to(feats.device)
                 
                 batch = {'coords': bcoords, 'features': feats, 'pnt_coords': pnt_coords}
                 
