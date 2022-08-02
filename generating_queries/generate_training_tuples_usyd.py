@@ -10,7 +10,7 @@ import random
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-base_path = "../../USyd/"
+base_path = "/home/xiayan/testdir/datasets/Usyd"
 
 runs_folder = "weeks/"
 pointcloud_fols = "/pointclouds_with_locations_5m/"
@@ -62,8 +62,8 @@ def check_in_test_set(northing, easting, points, x_width, y_width):
 def construct_query_dict(df_centroids, filename):
     tree = KDTree(df_centroids[['northing', 'easting']])
     # CURRENT DISTANCES: POS<10, NEG>25
-    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=10)
-    ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=25)
+    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=5)
+    ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=12.5)
     queries = {}
     for i in range(len(ind_nn)):
         query = df_centroids.iloc[i]["file"]

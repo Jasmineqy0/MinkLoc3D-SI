@@ -93,7 +93,7 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
             for key in range(len(test_sets[j].keys())):
                 coor = np.array([[test_sets[j][key]["northing"], test_sets[j][key]["easting"]]])
                 # DISTANCES: CORRECT<10
-                index = tree.query_radius(coor, r=10)
+                index = tree.query_radius(coor, r=5)
                 # indices of the positive matches in database i of each query (key) in test set j
                 test_sets[j][key][i] = index[0].tolist()
 
@@ -104,7 +104,7 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
 ###Building database and query files for evaluation
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-base_path = "../../USyd/"
+base_path = "/home/xiayan/testdir/datasets/Usyd"
 
 # For USyd
 runs_folder = "weeks/"

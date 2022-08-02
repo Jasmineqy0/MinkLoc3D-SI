@@ -4,5 +4,7 @@ tf_logs/
 generating_queries/*.pickle
 generating_queries/*.log
 **/__pycache__
-MinkLoc3D_SI.egg-info
-**/*.pid
+*.egg-info
+**/*.o
+**/*.so
+**/cuda_ops/build

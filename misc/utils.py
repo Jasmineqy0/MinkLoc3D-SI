@@ -6,6 +6,7 @@
 import os
 import configparser
 import time
+from typing import Dict
 import numpy as np
 
 
@@ -13,14 +14,18 @@ class ModelParams:
     def __init__(self, model_params_path):
         config = configparser.ConfigParser()
         config.read(model_params_path)
-        params = config['MODEL']
+        params = config['MINKLOC3D-SI']
 
         self.model_params_path = model_params_path
-        self.model = params.get('model')
+        self.gpu = params.getint('gpu')
+        self.backbone = params.get('backbone')
+        assert self.backbone in ['MinkFPN', 'FCGF'], 'Supported Backbone are: MinkFPN, FCGF' 
+        self.pooling = params.get('pooling')
+        assert self.pooling in ['Max', 'GeM', 'NetVlad', 'NetVlad_CG'], 'Supported Pooling are: Max, GeM, NetVlad, NetVlad_CG' 
         self.output_dim = params.getint('output_dim', 256)  # Size of the final descriptor
 
         # Add gating as the last step
-        if 'vlad' in self.model.lower():
+        if 'vlad' in self.pooling.lower():
             self.cluster_size = params.getint('cluster_size', 64)  # Size of NetVLAD cluster
             self.gating = params.getboolean('gating', True)  # Use gating after the NetVlad
 
@@ -28,78 +33,108 @@ class ModelParams:
         # Model dependent
         #######################################################################
 
-        if 'MinkFPN' in self.model:
-            # Models using MinkowskiEngine
-            self.mink_quantization_size = [float(item) for item in params['mink_quantization_size'].split(',')]
-            self.version = params['version']
-            assert self.version in ['MinkLoc3D', 'MinkLoc3D-I', 'MinkLoc3D-S', 'MinkLoc3D-SI'], 'Supported versions ' \
-                                                                                                'are: MinkLoc3D, ' \
-                                                                                                'MinkLoc3D-I, ' \
-                                                                                                'MinkLoc3D-S, ' \
-                                                                                                'MinkLoc3D-SI '
-            # Size of the local features from backbone network (only for MinkNet based models)
-            # For PointNet-based models we always use 1024 intermediary features
-            self.feature_size = params.getint('feature_size', 256)
-            if 'planes' in params:
-                self.planes = [int(e) for e in params['planes'].split(',')]
-            else:
-                self.planes = [32, 64, 64]
+        # Models using MinkowskiEngine
+        self.mink_quantization_size = [float(item) for item in params['mink_quantization_size'].split(',')]
+        self.version = params['version']
+        assert self.version in ['MinkLoc3D', 'MinkLoc3D-I', 'MinkLoc3D-S', 'MinkLoc3D-SI'], 'Supported versions ' \
+                                                                                            'are: MinkLoc3D, ' \
+                                                                                            'MinkLoc3D-I, ' \
+                                                                                            'MinkLoc3D-S, ' \
+                                                                                            'MinkLoc3D-SI '
+        # Size of the local features from backbone network (only for MinkNet based models)
+        # For PointNet-based models we always use 1024 intermediary features
+        self.feature_size = params.getint('feature_size', 256)
+        if 'planes' in params:
+            self.planes = [int(e) for e in params['planes'].split(',')]
+        else:
+            self.planes = [32, 64, 64]
 
-            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            with_pnt = params.getboolean('with_pnt')
-            with_crosatt = params.getboolean('with_crosatt')
-            assert ~(with_pnt == True and with_crosatt == True), '3 options: combine pointnet only, cross attention pointnet features or Neither'
+        if 'layers' in params:
+            self.layers = [int(e) for e in params['layers'].split(',')]
+        else:
+            self.layers = [1, 1, 1]
+
+        self.num_top_down = params.getint('num_top_down', 1)
+        self.conv0_kernel_size = params.getint('conv0_kernel_size', 5)
+        
+        combine_modules = ['POINTNET', 'SELF-ATTENTION', 'POINTNET-CROSS-ATTENTION', 'MULTI-CROSS-ATTENTION'] \
+                          if self.backbone == 'MinkFPN' else ['POINTNET', 'FCGF']
+        combine_modules = {} if self.version not in ['MinkLoc3D-S', 'MinkLoc3D-SI'] else combine_modules
+        self.get_combine_params(config, combine_modules)
+        assert isinstance(self.combine_params, Dict)
             
-            if with_pnt:
-                with_way = params['with_way']
-                assert with_way in ['cat', 'add']
-                before_pooling = params.getboolean('before_pooling')
-                if before_pooling:
-                    assert with_way == 'cat', 'only cat pointnet features before pooling'
-                    
-                self.combine_params = {"with_pnt": with_pnt,
-                                       "with_crosatt": with_crosatt,
-                                       "with_way": with_way,
-                                       "before_pooling": before_pooling}   
-            elif with_crosatt:
-                nhead=params.getint('nhead')
-                d_feedforward = params.getint("d_feedforward")
-                dropout = params.getint("dropout")
-                transformer_act = params['transformer_act']
-                pre_norm = params.getboolean("pre_norm")
-                attention_type = params['attention_type']
-                sa_val_has_pos_emb = params.getboolean('sa_val_has_pos_emb')
-                ca_val_has_pos_emb = params.getboolean('ca_val_has_pos_emb')
-                num_encoder_layers = params.getint('num_encoder_layers')
-                transformer_encoder_has_pos_emb = params.getboolean('transformer_encoder_has_pos_emb')
+    def get_combine_params(self, config, combine_modules):
+        self.combine_params = {}
+        fcgf_params = config['FCGF'] if 'FCGF' in combine_modules else None
+        pntnet_params = config['POINTNET'] if 'POINTNET' in combine_modules else None
+        self_att_params = config['SELF-ATTENTION'] if 'SELF-ATTENTION' in combine_modules else None
+        cross_att_params = config['POINTNET-CROSS-ATTENTION'] if 'POINTNET-CROSS-ATTENTION' in combine_modules else None
+        multi_att_params = config['MULTI-CROSS-ATTENTION'] if 'MULTI-CROSS-ATTENTION' in combine_modules else None
+        
+        with_pntnet = pntnet_params.getboolean('with_pntnet') if self_att_params is not None else None
+        with_cross_att = cross_att_params.getboolean('with_cross_att') if cross_att_params is not None else None
+        with_self_att = self_att_params.getboolean('with_self_att') if self_att_params is not None else None
+        with_multi_att = multi_att_params.getboolean('with_multi_att') if multi_att_params is not None else None
+        assert not(with_pntnet and with_cross_att), 'Options: with_pntnet or with_cross_att or Neither '
+        assert not(with_self_att and with_multi_att), 'Options: with_self_att or with_multi_att or Neither '
+        assert not(with_cross_att and with_multi_att), 'Options: with_cross_att or with_multi_att or Neither '
+        
+        if fcgf_params is not None:
+            fcgf_combine_params = {'FCGF': { 'in_channels': fcgf_params.getint('in_channels'),
+                                             'out_channels': fcgf_params.getint('out_channels'),
+                                             'bn_momentum': fcgf_params.getfloat('bn_momentum'),
+                                             'normalize_feature': fcgf_params.getboolean('normalize_feature'),
+                                             'conv1_kernel_size': fcgf_params.getint('conv1_kernel_size'),
+                                             'D': fcgf_params.getint('D') }}
+            self.combine_params = {**self.combine_params, **fcgf_combine_params}
+
+        if with_pntnet:
+            pntnet_combine_params = {'pointnet': { 'pnt2s': pntnet_params.getboolean('pnt2s') }}
+            self.combine_params = {**self.combine_params, **pntnet_combine_params}
+            
+        if with_self_att:
+            assert self_att_params.getint('num_layers') >= 1, 'num_layers must be greater than 1'
+            assert self_att_params.getint('num_layers') <= sum(self.layers)+2+self.num_top_down, 'num_layers should be <= sum(self.layers)+2+self.num_top_down'
+            self_att_combine_params = {'self_attention': {  'linear_att': self_att_params.getboolean('linear_att'),
+                                                            'num_layers': self_att_params.getint('num_layers'),
+                                                            'kernel_size': self_att_params.getint('kernel_size'),
+                                                            'stride': self_att_params.getint('stride'),
+                                                            'dilation': self_att_params.getint('dilation'),
+                                                            'num_heads': self_att_params.getint('num_heads') }}
+            self.combine_params = {**self.combine_params, **self_att_combine_params}
+                   
+        if with_cross_att:
+            assert cross_att_params['attention_type'] in ['dot_prod', 'linear_attention'], 'Supported attention types: dot_prod, linear_attention'
+            cross_att_combine_params = {"pointnet_cross_attention": 
+                                                           {"pnt2s": cross_att_params.getboolean('pnt2s'),
+                                                            "nhead": cross_att_params.getint('num_heads'),
+                                                            "d_feedforward": cross_att_params.getint("d_feedforward"),
+                                                            "dropout": cross_att_params.getint("dropout"),
+                                                            "transformer_act": cross_att_params['transformer_act'],
+                                                            "pre_norm": cross_att_params.getboolean("pre_norm"),
+                                                            "attention_type": cross_att_params['attention_type'],
+                                                            "sa_val_has_pos_emb": cross_att_params.getboolean('sa_val_has_pos_emb'),
+                                                            "ca_val_has_pos_emb": cross_att_params.getboolean('ca_val_has_pos_emb'),
+                                                            "num_encoder_layers": cross_att_params.getint('num_encoder_layers'),
+                                                            "transformer_encoder_has_pos_emb": cross_att_params.getboolean('transformer_encoder_has_pos_emb') }}
+            self.combine_params = {**self.combine_params, **cross_att_combine_params}
+        if with_multi_att:
+            with_multi_att_params = {'multi_cross_attention':{
+                                                            "nhead": multi_att_params.getint('num_heads'),
+                                                            "d_feedforward": multi_att_params.getint("d_feedforward"),
+                                                            "dropout": multi_att_params.getint("dropout"),
+                                                            "transformer_act": multi_att_params['transformer_act'],
+                                                            "pre_norm": multi_att_params.getboolean("pre_norm"),
+                                                            "attention_type": multi_att_params['attention_type'],
+                                                            "sa_val_has_pos_emb": multi_att_params.getboolean('sa_val_has_pos_emb'),
+                                                            "ca_val_has_pos_emb": multi_att_params.getboolean('ca_val_has_pos_emb'),
+                                                            "num_encoder_layers": multi_att_params.getint('num_encoder_layers'),
+                                                            "transformer_encoder_has_pos_emb": multi_att_params.getboolean('transformer_encoder_has_pos_emb') 
+            }}
+            self.combine_params = {**self.combine_params, **with_multi_att_params}
+            if self.version != 'MINKLOC3D-S':
+                NotImplementedError('MULTI-CROSS-ATTENTION is currently only supported in MINKLOC3D-S')
                 
-                base_params = {"with_pnt": with_pnt,
-                               "with_crosatt": with_crosatt,
-                               'nhead': nhead,
-                               "d_feedforward": d_feedforward,
-                               "dropout": dropout,
-                               "transformer_act": transformer_act,
-                               "pre_norm": pre_norm,
-                               "attention_type": attention_type,
-                               "sa_val_has_pos_emb": sa_val_has_pos_emb,
-                               "ca_val_has_pos_emb": ca_val_has_pos_emb,
-                               "num_encoder_layers": num_encoder_layers,
-                               "transformer_encoder_has_pos_emb": transformer_encoder_has_pos_emb}
-
-                self.combine_params = {}
-                self.combine_params = {** base_params, ** self.combine_params} 
-            else:
-                self.combine_params = {"with_pnt": with_pnt, "with_crosatt": with_crosatt}
-            #################################################
-
-            if 'layers' in params:
-                self.layers = [int(e) for e in params['layers'].split(',')]
-            else:
-                self.layers = [1, 1, 1]
-
-            self.num_top_down = params.getint('num_top_down', 1)
-            self.conv0_kernel_size = params.getint('conv0_kernel_size', 5)
-
     def print(self):
         print('Model parameters:')
         param_dict = vars(self)
@@ -157,8 +192,8 @@ class MinkLocParams:
         self.max_distance = params.getint('max_distance')
 
         self.dataset_name = params.get('dataset_name')
-        assert self.dataset_name in ['USyd', 'IntensityOxford', 'Oxford', 'TUM'], 'Dataset should be USyd, IntensityOxford ' \
-                                                                           'or Oxford, TUM '
+        assert self.dataset_name in ['USyd', 'IntensityOxford', 'Oxford', 'TUM', 'KITTI'], 'Dataset should be USyd, IntensityOxford ' \
+                                                                           'or Oxford, TUM, KITTI'
 
         self.dataset_folder = params.get('dataset_folder')
 
@@ -227,6 +262,9 @@ class MinkLocParams:
         elif self.dataset_name == 'TUM':
             self.eval_database_files = ['tum_evaluation_frame_5m_database.pickle']
             self.eval_query_files = ['tum_evaluation_frame_5m_query.pickle']
+        elif self.dataset_name == 'KITTI':
+            self.eval_database_files = ['KITTI_00_database_samp10.pickle']
+            self.eval_query_files = ['KITTI_00_query_samp10.pickle']
 
         assert len(self.eval_database_files) == len(self.eval_query_files)
 

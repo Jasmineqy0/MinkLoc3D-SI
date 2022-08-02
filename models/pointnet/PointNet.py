@@ -7,7 +7,6 @@ import torch.utils.data
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
-from datasets.dataset_utils import to_spherical_me
 
 class Flatten(nn.Module):
     def __init__(self):
@@ -127,108 +126,17 @@ class PointNetfeat(nn.Module):
                 x = x.view(-1, 1024, 1).repeat(1, 1, self.num_points)
                 return torch.cat([x, pointfeat], 1), trans
             
-class PointNetfeat_BfPooling(nn.Module):
+class PointNetfeatv1(PointNetfeat):
     def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=1024):
-        super(PointNetfeat_BfPooling, self).__init__()
-        self.stn = STN3d(num_points=num_points, k=3, use_bn=False)
-        self.feature_trans = STN3d(num_points=num_points, k=64, use_bn=False)
-        self.apply_feature_trans = feature_transform
-        self.conv1 = torch.nn.Conv2d(1, 64, (1, 3))
-        self.conv2 = torch.nn.Conv2d(64, 64, (1, 1))
-        self.conv3 = torch.nn.Conv2d(64, 64, (1, 1))
-        self.conv4 = torch.nn.Conv2d(64, 128, (1, 1))
-        # self.conv5 = torch.nn.Conv2d(128, 1024, (1, 1))
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+        
+        super().__init__(num_points=num_points,
+                         global_feat=global_feat,
+                         feature_transform=feature_transform,
+                         max_pool=max_pool)
+        
         self.conv5 = torch.nn.Conv2d(128, output_dim, (1, 1))
-        self.output_dim = output_dim
-        #################################################
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.bn3 = nn.BatchNorm2d(64)
-        self.bn4 = nn.BatchNorm2d(128)
-        # self.bn5 = nn.BatchNorm2d(1024)
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
         self.bn5 = nn.BatchNorm2d(output_dim)
-        #################################################
-        self.mp1 = torch.nn.MaxPool2d((num_points, 1), 1)
-        self.num_points = num_points
-        self.global_feat = global_feat
-        self.max_pool = max_pool
-
-    def forward(self, x):
-        batchsize = x.size()[0]
-        # #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        # coords = []
-        # reserved_rows = []
-        # for idx in range(batchsize):
-        #     # Convert coordinates to spherical, return [ r, theta, phi] with added batch_idx for later conversion of sparse tensor
-        #     # spherical_e, batch_reserved_rows = to_spherical_me(torch.squeeze(x, dim=1)[idx].cpu().numpy(), 'TUM', idx)
-        #     # coords.append(torch.tensor(spherical_e, dtype=torch.float))
-        #     # reserved_rows += batch_reserved_rows
-        #     coord = torch.squeeze(x, dim=1)[idx].cpu().numpy()
-        #     coord = torch.tensor(to_spherical_me(coord, 'Oxford'), dtype=x.dtype)
-        #     coords.append(coord)
-        # x = torch.vstack(coords).to(x.device).reshape([batchsize, 1, -1, 3])
-        # coords = ME.utils.batched_coordinates(coords)
-        # #################################################
-        trans = self.stn(x)
-        x = torch.matmul(torch.squeeze(x), trans)
-        x = x.view(batchsize, 1, -1, 3)
-        #x = x.transpose(2,1)
-        #x = torch.bmm(x, trans)
-        #x = x.transpose(2,1)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        pointfeat = x
-        if self.apply_feature_trans:
-            f_trans = self.feature_trans(x)
-            x = torch.squeeze(x)
-            if batchsize == 1:
-                x = torch.unsqueeze(x, 0)
-            x = torch.matmul(x.transpose(1, 2), f_trans)
-            x = x.transpose(1, 2).contiguous()
-            x = x.view(batchsize, 64, -1, 1)
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = F.relu(self.bn4(self.conv4(x)))
-        x = self.bn5(self.conv5(x))
-        if not self.max_pool:
-            #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-            feats = x.view(-1, self.output_dim)
-            # feats = feats[reserved_rows]
-            # return a sparse tensor with pointnet features of all points
-            return feats
-            #################################################
-            return x
-        else:
-            x = self.mp1(x)
-            x = x.view(-1, 1024)
-            if self.global_feat:
-                return x, trans
-            else:
-                x = x.view(-1, 1024, 1).repeat(1, 1, self.num_points)
-                return torch.cat([x, pointfeat], 1), trans
-            
-class PointNetfeat_AfPooling(nn.Module):
-    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=256):
-        super(PointNetfeat_AfPooling, self).__init__()
-        self.stn = STN3d(num_points=num_points, k=3, use_bn=False)
-        self.feature_trans = STN3d(num_points=num_points, k=64, use_bn=False)
-        self.apply_feature_trans = feature_transform
-        self.conv1 = torch.nn.Conv2d(1, 64, (1, 3))
-        self.conv2 = torch.nn.Conv2d(64, 64, (1, 1))
-        self.conv3 = torch.nn.Conv2d(64, 64, (1, 1))
-        self.conv4 = torch.nn.Conv2d(64, 128, (1, 1))
-        self.conv5 = torch.nn.Conv2d(128, 1024, (1, 1))
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.bn3 = nn.BatchNorm2d(64)
-        self.bn4 = nn.BatchNorm2d(128)
-        self.bn5 = nn.BatchNorm2d(1024)
-        self.mp1 = torch.nn.MaxPool2d((num_points, 1), 1)
-        self.fc = nn.Linear(1024, output_dim) # added fully connected layer
-        self.num_points = num_points
-        self.global_feat = global_feat
-        self.max_pool = max_pool
+        self.output_dim = output_dim
 
     def forward(self, x):
         batchsize = x.size()[0]
@@ -256,12 +164,10 @@ class PointNetfeat_AfPooling(nn.Module):
             return x
         else:
             x = self.mp1(x)
-            x = x.view(-1, 1024)
+            x = x.view(-1, self.output_dim)
             if self.global_feat:
-                x = self.fc(x) # to the desired output_dim
                 return x, trans
             else:
-                x = x.view(-1, 1024, 1).repeat(1, 1, self.num_points)
-                return torch.cat([x, pointfeat], 1), trans
-
+                x = x.view(-1, self.output_dim, 1).repeat(1, 1, self.num_points)
+                return torch.cat([x, pointfeat], 1), trans         
 

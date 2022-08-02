@@ -13,6 +13,7 @@ from typing import Optional, List
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
+from linear_attention_transformer.linear_attention_transformer import SelfAttention
 
 
 class TransformerCrossEncoder(nn.Module):
@@ -90,10 +91,14 @@ class TransformerCrossEncoderLayer(nn.Module):
                  ):
         super().__init__()
 
+        self.attention_type = attention_type
         # Self, cross attention layers
         if attention_type == 'dot_prod':
             self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
             self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        elif attention_type == 'linear_attention':
+            self.self_attn = SelfAttention(dim=d_model, heads=nhead, causal=False)
+            self.multihead_attn = SelfAttention(dim=d_model, heads=nhead, causal=False)
         else:
             raise NotImplementedError
 
@@ -131,19 +136,27 @@ class TransformerCrossEncoderLayer(nn.Module):
         # Self attention
         src_w_pos = self.with_pos_embed(src, src_pos)
         q = k = src_w_pos
-        src2, satt_weights_s = self.self_attn(q, k,
-                              value=src_w_pos if self.sa_val_has_pos_emb else src,
-                              attn_mask=src_mask,
-                              key_padding_mask=src_key_padding_mask)
+        if self.attention_type == 'dot_prod':
+            src2, satt_weights_s = self.self_attn(q, k,
+                                value=src_w_pos if self.sa_val_has_pos_emb else src,
+                                attn_mask=src_mask,
+                                key_padding_mask=src_key_padding_mask)
+        elif self.attention_type == 'linear_attention':
+            assert self.sa_val_has_pos_emb, 'source should have pos embeddings'
+            src2 = self.self_attn(x=src_w_pos, input_mask=src_key_padding_mask.T)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
         tgt_w_pos = self.with_pos_embed(tgt, tgt_pos)
         q = k = tgt_w_pos
-        tgt2, satt_weights_t = self.self_attn(q, k,
-                                              value=tgt_w_pos if self.sa_val_has_pos_emb else tgt,
-                                              attn_mask=tgt_mask,
-                                              key_padding_mask=tgt_key_padding_mask)
+        if self.attention_type == 'dot_prod':
+            tgt2, satt_weights_t = self.self_attn(q, k,
+                                                value=tgt_w_pos if self.sa_val_has_pos_emb else tgt,
+                                                attn_mask=tgt_mask,
+                                                key_padding_mask=tgt_key_padding_mask)
+        elif self.attention_type == 'linear_attention':
+            assert self.sa_val_has_pos_emb, 'target should have pos embeddings'
+            tgt2 = self.self_attn(x=tgt_w_pos, input_mask=tgt_key_padding_mask.T)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
@@ -151,16 +164,26 @@ class TransformerCrossEncoderLayer(nn.Module):
         src_w_pos = self.with_pos_embed(src, src_pos)
         tgt_w_pos = self.with_pos_embed(tgt, tgt_pos)
 
-        src2, xatt_weights_s = self.multihead_attn(query=self.with_pos_embed(src, src_pos),
-                                                   key=tgt_w_pos,
-                                                   value=tgt_w_pos if self.ca_val_has_pos_emb else tgt,
-                                                   attn_mask=tgt_mask,
-                                                   key_padding_mask=tgt_key_padding_mask)
-        tgt2, xatt_weights_t = self.multihead_attn(query=self.with_pos_embed(tgt, tgt_pos),
-                                                   key=src_w_pos,
-                                                   value=src_w_pos if self.ca_val_has_pos_emb else src,
-                                                   attn_mask=src_mask,
-                                                   key_padding_mask=src_key_padding_mask)
+        if self.attention_type == 'dot_prod':
+            src2, xatt_weights_s = self.multihead_attn(query=self.with_pos_embed(src, src_pos),
+                                                    key=tgt_w_pos,
+                                                    value=tgt_w_pos if self.ca_val_has_pos_emb else tgt,
+                                                    attn_mask=tgt_mask,
+                                                    key_padding_mask=tgt_key_padding_mask)
+            tgt2, xatt_weights_t = self.multihead_attn(query=self.with_pos_embed(tgt, tgt_pos),
+                                                    key=src_w_pos,
+                                                    value=src_w_pos if self.ca_val_has_pos_emb else src,
+                                                    attn_mask=src_mask,
+                                                    key_padding_mask=src_key_padding_mask)
+        elif self.attention_type == 'linear_attention':
+            src2 = self.multihead_attn(x=self.with_pos_embed(src, src_pos),
+                                       input_mask=src_key_padding_mask.T,
+                                       context=tgt_w_pos if self.ca_val_has_pos_emb else tgt2,
+                                       context_mask=tgt_key_padding_mask.T)
+            tgt2 = self.multihead_attn(x=self.with_pos_embed(tgt, tgt_pos),
+                                       input_mask=tgt_key_padding_mask.T,
+                                       context=src_w_pos if self.ca_val_has_pos_emb else src2,
+                                       context_mask=src_key_padding_mask.T)  
 
         src = self.norm2(src + self.dropout2(src2))
         tgt = self.norm2(tgt + self.dropout2(tgt2))
@@ -175,8 +198,9 @@ class TransformerCrossEncoderLayer(nn.Module):
         tgt = self.norm3(tgt)
 
         # Stores the attention weights for analysis, if required
-        self.satt_weights = (satt_weights_s, satt_weights_t)
-        self.xatt_weights = (xatt_weights_s, xatt_weights_t)
+        if self.attention_type == 'dot_prod':
+            self.satt_weights = (satt_weights_s, satt_weights_t)
+            self.xatt_weights = (xatt_weights_s, xatt_weights_t)
 
         return src, tgt
 
@@ -194,19 +218,27 @@ class TransformerCrossEncoderLayer(nn.Module):
         src2 = self.norm1(src)
         src2_w_pos = self.with_pos_embed(src2, src_pos)
         q = k = src2_w_pos
-        src2, satt_weights_s = self.self_attn(q, k,
-                                              value=src2_w_pos if self.sa_val_has_pos_emb else src2,
-                                              attn_mask=src_mask,
-                                              key_padding_mask=src_key_padding_mask)
+        if self.attention_type == 'dot_prod':
+            src2, satt_weights_s = self.self_attn(q, k,
+                                                value=src2_w_pos if self.sa_val_has_pos_emb else src2,
+                                                attn_mask=src_mask,
+                                                key_padding_mask=src_key_padding_mask)
+        elif self.attention_type == 'linear_attention':
+            assert self.sa_val_has_pos_emb, 'source should have pos embeddings'
+            src2 = self.self_attn(x=src2_w_pos, input_mask=src_key_padding_mask.T)
         src = src + self.dropout1(src2)
 
         tgt2 = self.norm1(tgt)
         tgt2_w_pos = self.with_pos_embed(tgt2, tgt_pos)
         q = k = tgt2_w_pos
-        tgt2, satt_weights_t = self.self_attn(q, k,
-                                              value=tgt2_w_pos if self.sa_val_has_pos_emb else tgt2,
-                                              attn_mask=tgt_mask,
-                                              key_padding_mask=tgt_key_padding_mask)
+        if self.attention_type == 'dot_prod':
+            tgt2, satt_weights_t = self.self_attn(q, k,
+                                                value=tgt2_w_pos if self.sa_val_has_pos_emb else tgt2,
+                                                attn_mask=tgt_mask,
+                                                key_padding_mask=tgt_key_padding_mask)
+        elif self.attention_type == 'linear_attention':
+            assert self.sa_val_has_pos_emb, 'target should have pos embeddings'
+            tgt2 = self.self_attn(x=tgt2_w_pos, input_mask=tgt_key_padding_mask.T)
         tgt = tgt + self.dropout1(tgt2)
 
         # Cross attention
@@ -214,16 +246,26 @@ class TransformerCrossEncoderLayer(nn.Module):
         src_w_pos = self.with_pos_embed(src2, src_pos)
         tgt_w_pos = self.with_pos_embed(tgt2, tgt_pos)
 
-        src3, xatt_weights_s = self.multihead_attn(query=self.with_pos_embed(src2, src_pos),
-                                                   key=tgt_w_pos,
-                                                   value=tgt_w_pos if self.ca_val_has_pos_emb else tgt2,
-                                                   attn_mask=tgt_mask,
-                                                   key_padding_mask=tgt_key_padding_mask)
-        tgt3, xatt_weights_t = self.multihead_attn(query=self.with_pos_embed(tgt2, tgt_pos),
-                                                   key=src_w_pos,
-                                                   value=src_w_pos if self.ca_val_has_pos_emb else src2,
-                                                   attn_mask=src_mask,
-                                                   key_padding_mask=src_key_padding_mask)
+        if self.attention_type == 'dot_prod':
+            src3, xatt_weights_s = self.multihead_attn(query=self.with_pos_embed(src2, src_pos),
+                                                    key=tgt_w_pos,
+                                                    value=tgt_w_pos if self.ca_val_has_pos_emb else tgt2,
+                                                    attn_mask=tgt_mask,
+                                                    key_padding_mask=tgt_key_padding_mask)
+            tgt3, xatt_weights_t = self.multihead_attn(query=self.with_pos_embed(tgt2, tgt_pos),
+                                                    key=src_w_pos,
+                                                    value=src_w_pos if self.ca_val_has_pos_emb else src2,
+                                                    attn_mask=src_mask,
+                                                    key_padding_mask=src_key_padding_mask)
+        elif self.attention_type == 'linear_attention':
+            src3 = self.multihead_attn(x=self.with_pos_embed(src2, src_pos),
+                                       input_mask=src_key_padding_mask.T,
+                                       context=tgt_w_pos if self.ca_val_has_pos_emb else tgt2,
+                                       context_mask=tgt_key_padding_mask.T)
+            tgt3 = self.multihead_attn(x=self.with_pos_embed(tgt2, tgt_pos),
+                                       input_mask=tgt_key_padding_mask.T,
+                                       context=src_w_pos if self.ca_val_has_pos_emb else src2,
+                                       context_mask=src_key_padding_mask.T)
 
         src = src + self.dropout2(src3)
         tgt = tgt + self.dropout2(tgt3)
@@ -238,8 +280,9 @@ class TransformerCrossEncoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
 
         # Stores the attention weights for analysis, if required
-        self.satt_weights = (satt_weights_s, satt_weights_t)
-        self.xatt_weights = (xatt_weights_s, xatt_weights_t)
+        if self.attention_type == 'dot_prod':
+            self.satt_weights = (satt_weights_s, satt_weights_t)
+            self.xatt_weights = (xatt_weights_s, xatt_weights_t)
 
         return src, tgt
 

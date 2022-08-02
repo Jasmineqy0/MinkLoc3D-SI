@@ -63,9 +63,7 @@ class PositionEmbeddingLearned(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 128),
             nn.ReLU(),
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, d_model)
+            nn.Linear(128, d_model)
         )
 
     def forward(self, xyz: torch.Tensor) -> torch.Tensor:

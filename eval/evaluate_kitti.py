@@ -103,11 +103,14 @@ def load_pc(filename, params):
 
     # convert to spherical coordinates in -S versions
     if params.model_params.version in ['MinkLoc3D-S', 'MinkLoc3D-SI']:
-        pc = to_spherical(pc, params.dataset_name)
+        pc_s = to_spherical(pc, params.dataset_name)
+    else:
+        pc_s = pc
 
     pc = torch.tensor(pc, dtype=torch.float)
+    pc_s = torch.tensor(pc_s, dtype=torch.float)
 
-    return pc
+    return pc, pc_s
 
 
 def get_latent_vectors(model, set, device, params):
@@ -125,24 +128,35 @@ def get_latent_vectors(model, set, device, params):
 
     model.eval()
     embeddings_l = []
+
+    include_pnt, pnt2s = False, False 
+    for key in ['pointnet', 'pointnet_cross_attention']:
+        if key in params.model_params.combine_params:
+            include_pnt = True
+            if params.model_params.combine_params[key]['pnt2s']:
+                pnt2s = True
+    include_pnt2s = True if include_pnt and pnt2s else False
+
     for elem_ndx in tqdm.tqdm(set):
-        x = load_pc(set[elem_ndx]["query_velo"], params)
+        x, x_s = load_pc(set[elem_ndx]["query_velo"], params)
 
         with torch.no_grad():
             # models without intensity
             if params.model_params.version in ['MinkLoc3D', 'MinkLoc3D-S']:
-                coords = ME.utils.sparse_quantize(coordinates=x,
-                                                  quantization_size=params.model_params.mink_quantization_size)
+                coords = ME.utils.sparse_quantize(coordinates=x_s, quantization_size=params.model_params.mink_quantization_size)
+                coords_more = ME.utils.sparse_quantize(coordinates=x_s, quantization_size=[0.0001, 0.0001, 0.0001])
                 bcoords = ME.utils.batched_coordinates([coords]).to(device)
+                boords_more =  ME.utils.batched_coordinates([coords_more]).to(device)
+
                 # Assign a dummy feature equal to 1 to each point
                 # Coords must be on CPU, features can be on GPU - see MinkowskiEngine documentation
                 feats = torch.ones((bcoords.shape[0], 1), dtype=torch.float32).to(device)
 
             # models with intensity - intensity value is averaged over voxel
             elif params.model_params.version in ['MinkLoc3D-I', 'MinkLoc3D-SI']:
-                sparse_field = ME.TensorField(features=x[:, 3].reshape([-1, 1]),
+                sparse_field = ME.TensorField(features=x_s[:, 3].reshape([-1, 1]),
                                               coordinates=ME.utils.batched_coordinates(
-                                                  [x[:, :3] / np.array(params.model_params.mink_quantization_size)],
+                                                  [x_s[:, :3] / np.array(params.model_params.mink_quantization_size)],
                                                   dtype=torch.int),
                                               quantization_mode=ME.SparseTensorQuantizationMode.UNWEIGHTED_AVERAGE,
                                               minkowski_algorithm=ME.MinkowskiAlgorithm.SPEED_OPTIMIZED).sparse()
@@ -150,6 +164,12 @@ def get_latent_vectors(model, set, device, params):
                 bcoords = sparse_field.coordinates.to(device)
 
             batch = {'coords': bcoords, 'features': feats}
+            batch['coords_more'] = boords_more if params.model_params.version == 'MinkLoc3D-S' else None
+            
+            if include_pnt:
+                pnt_coords = x_s if include_pnt2s else x
+                batch['pnt_coords'] = pnt_coords.unsqueeze(dim=0).to(device)
+            
             embedding = model(batch)
             # embedding is (1, 256) tensor
             if params.normalize_embeddings:
@@ -237,7 +257,7 @@ if __name__ == "__main__":
 
     params.eval_database_files = ["KITTI_00_database_samp10.pickle"]
     params.eval_query_files = ["KITTI_00_query_samp10.pickle"]
-    params.dataset_folder = "/ourdata_adas/KITTI/kitti_00"
+    params.dataset_folder = "/home/xiayan/testdir/datasets/kitti_00"
     params.dataset_name = "KITTI"
     params.model_params.mink_quantization_size = [2.5, 2.0, 0.42]
     params.print()

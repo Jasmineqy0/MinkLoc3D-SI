@@ -12,6 +12,7 @@ from torch import nn
 import pickle
 import tqdm
 import pathlib
+import json
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -62,8 +63,11 @@ def tensors_to_numbers(stats):
 def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     # Create model class
     s = get_datetime()
+    now = datetime.now()
+    now_strftime = now.strftime("%Y%m%d-%H%M%S")
     model = model_factory(params)
-    model_name = 'model_' + params.model_params.model + '_' + s
+    model_name = 'model_' + params.model_params.backbone + params.model_params.pooling + \
+                 '_' + now_strftime.replace('-', '_')
     print('Model name: {}'.format(model_name))
     weights_path = create_weights_folder()
     model_pathname = os.path.join(weights_path, model_name)
@@ -76,7 +80,7 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
     # Move the model to the proper device before configuring the optimizer
     if torch.cuda.is_available():
-        device = torch.device("cuda:1")
+        device = torch.device(f"cuda:{params.model_params.gpu}")
         torch.cuda.set_device(device)
         model.to(device)
     else:
@@ -107,8 +111,8 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
     # Initialize TensorBoard writer
     ###########################################################################
 
-    now = datetime.now()
-    logdir = os.path.join("../tf_logs", now.strftime("%Y%m%d-%H%M%S"))
+    # now = datetime.now()
+    logdir = os.path.join("../tf_logs", now_strftime)
     writer = SummaryWriter(logdir)
 
     ###########################################################################
@@ -222,7 +226,10 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
         print('')
 
-        # Save final model weights
+        if params.dataset_name != 'TUM' and epoch < params.epochs:
+            continue
+
+        # Save model weights
         final_model_path = os.path.join(model_pathname, f'epoch{epoch}.pth')
         torch.save(model.state_dict(), final_model_path)
 
@@ -232,35 +239,28 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
             final_eval_stats = evaluate(model, device, params)
         print(f'\nEpoch{epoch} model:')
         print_eval_stats(final_eval_stats)
-        stats['eval'].append(final_eval_stats)
+        stats['eval'].append({f'epoch{epoch}': final_eval_stats})
         print('')
         for database_name in final_eval_stats:
-            nz_metric1 = {'eval': final_eval_stats[database_name]['ave_one_percent_recall'].item()}
-            nz_metric2 = {'eval': final_eval_stats[database_name]['ave_recall'][0].item()}
-            writer.add_scalars('Mean recall', nz_metric2, epoch)
-            writer.add_scalars('One percent recall', nz_metric1, epoch)
+            nz_metric1 = {f'{database_name}': final_eval_stats[database_name]['ave_one_percent_recall'].item()}
+            nz_metric2 = {f'{database_name}': final_eval_stats[database_name]['ave_recall'][0].item()}
+            writer.add_scalars('Eval Mean recall', nz_metric2, epoch)
+            writer.add_scalars('Eval One percent recall', nz_metric1, epoch)
             writer.flush()
-            
-    # Pickle training stats and parameters
-    pickle_path = os.path.join(model_pathname, 'stats_final.pickle')
-    pickle.dump(stats, open(pickle_path, "wb"))   
-    stats = {'train_stats': stats, 'params': params}
 
-    # Append key experimental metrics to experiment summary file
-    model_params_name = os.path.split(params.model_params.model_params_path)[1]
-    config_name = os.path.split(params.params_path)[1]
-    _, model_name = os.path.split(model_pathname)
-    #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-    combine_param_name = "Combine Params"
-    prefix = f"\n{config_name:22}: Dataset {params.dataset_folder.split('/')[-1]}, Epoch {params.epochs}"
-    prefix += f"\n{model_params_name:22}: Version {params.model_params.version},  Model {model_name} "
-    prefix += f"\n{combine_param_name:22}: {params.model_params.combine_params}"
-    #################################################
-    # prefix = "{}, {}, {}, epoch: {}".format(model_params_name, config_name, model_name, params.epochs)
-    if not os.path.exists(os.path.join('..', 'results')):
-        os.mkdir(os.path.join('..', 'results'))
-    export_eval_stats(os.path.join('..', 'results', "experiment_results.txt"),
-                       prefix, final_eval_stats, params.dataset_name)
+    # # Pickle training stats and parameters
+    # pickle_path = model_pathname + '_stats.pickle'
+    # pickle.dump(stats, open(pickle_path, "wb"))
+    stats = {'stats': stats, 'params': vars(params)}
+    with open(os.path.join(logdir, 'config.json'), 'w') as f:
+        json.dump(stats, f, indent = 6, default=lambda o: getattr(o, '__dict__', str(o)))
+
+    # # Append key experimental metrics to experiment summary file
+    # model_params_name = os.path.split(params.model_params.model_params_path)[1]
+    # config_name = os.path.split(params.params_path)[1]
+    # _, model_name = os.path.split(model_pathname)
+    # prefix = "{}, {}, {}".format(model_params_name, config_name, model_name)
+    # export_eval_stats("experiment_results.txt", prefix, final_eval_stats, params.dataset_name)
 
 
 def export_eval_stats(file_name, prefix, eval_stats, dataset_name):

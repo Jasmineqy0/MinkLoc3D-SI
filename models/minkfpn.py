@@ -9,8 +9,10 @@ from MinkowskiEngine.modules.resnet_block import BasicBlock
 from typing import List
 from models.transformer.seq_manipulation import pad_sequence, unpad_sequences
 from models.transformer.position_embedding import PositionEmbeddingLearned
+from models.transformer.fast_point_transformer import LightweightSelfAttentionLayer
 from models.transformer.transformers import TransformerCrossEncoderLayer, TransformerCrossEncoder
 from models.resnet import ResNetBase
+import time
 
 class MinkFPN(ResNetBase):
     # Feature Pyramid Network (FPN) architecture implementation using Minkowski ResNet building blocks
@@ -28,37 +30,52 @@ class MinkFPN(ResNetBase):
         self.lateral_dim = out_channels
         self.init_dim = planes[0]
         ResNetBase.__init__(self, in_channels, out_channels, D=3)
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        self.with_crosatt  = combine_params['with_crosatt']
-        if self.with_crosatt:
+        
+        self.with_cross_att = True if 'pointnet_cross_attention' in combine_params or 'multi_cross_attention' in combine_params else False
+        if self.with_cross_att:
+            cross_att_key = 'pointnet_cross_attention' if 'pointnet_cross_attention' in combine_params else 'multi_cross_attention'
+
+        self.with_self_att = combine_params['self_attention'] if 'self_attention' in combine_params else None
+        self.linear_weight = combine_params['linear_weight'] if 'linear_weight' in combine_params else None
+        
+        if self.with_self_att:
+            self.num_attention_layers = combine_params['self_attention']['num_layers']
+            d_embed_list =  [ layer * [plane] for layer, plane in zip(layers, planes) ]
+            d_embed_list = [planes[0]] + [ item for list in d_embed_list for item in list ] + [self.lateral_dim] * (num_top_down+1)
+            self.pos_embed = PositionEmbeddingLearned(3, 3)
+            self.self_attention_layers = nn.ModuleList()
+
+            for i in range(self.num_attention_layers):
+                self.self_attention_layers.append(LightweightSelfAttentionLayer(
+                                                    in_channels=d_embed_list[i],
+                                                    out_channels=d_embed_list[i],
+                                                    kernel_size=combine_params['self_attention']['kernel_size'],
+                                                    stride=combine_params['self_attention']['stride'],
+                                                    dilation=combine_params['self_attention']['dilation'],
+                                                    num_heads=combine_params['self_attention']['num_heads'],
+                                                    linear_att=combine_params['self_attention']['linear_att']))
+            
+        if self.with_cross_att:
             d_embed = planes[0] # cross attention after first layer of conv
-            
-            nhead = combine_params['nhead']
-            d_feedforward = combine_params['d_feedforward']
-            dropout = combine_params['dropout']
-            transformer_act = combine_params['transformer_act']
-            pre_norm = combine_params['pre_norm']
-            attention_type = combine_params['attention_type']
-            sa_val_has_pos_emb = combine_params['sa_val_has_pos_emb']
-            ca_val_has_pos_emb = combine_params['ca_val_has_pos_emb']
-            num_encoder_layers = combine_params['num_encoder_layers']
-            self.transformer_encoder_has_pos_emb = combine_params['transformer_encoder_has_pos_emb']
-            
+            self.transformer_encoder_has_pos_emb = combine_params[cross_att_key]['transformer_encoder_has_pos_emb']
             self.pos_embed = PositionEmbeddingLearned(3, d_embed)
             
-            encoder_layer = TransformerCrossEncoderLayer(
-                d_embed, nhead, d_feedforward, dropout,
-                activation=transformer_act,
-                normalize_before=pre_norm,
-                sa_val_has_pos_emb=sa_val_has_pos_emb,
-                ca_val_has_pos_emb=ca_val_has_pos_emb,
-                attention_type=attention_type,
+            encoder_layer = TransformerCrossEncoderLayer( 
+                d_model=d_embed,
+                nhead=combine_params[cross_att_key]['nhead'],
+                dim_feedforward=combine_params[cross_att_key]['d_feedforward'], 
+                dropout=combine_params[cross_att_key]['dropout'],
+                activation=combine_params[cross_att_key]['transformer_act'],
+                normalize_before=combine_params[cross_att_key]['pre_norm'],
+                sa_val_has_pos_emb=combine_params[cross_att_key]['sa_val_has_pos_emb'],
+                ca_val_has_pos_emb=combine_params[cross_att_key]['ca_val_has_pos_emb'],
+                attention_type=combine_params[cross_att_key]['attention_type'],
             )
-            encoder_norm = nn.LayerNorm(d_embed) if pre_norm else None
             self.transformer_encoder = TransformerCrossEncoder(
-                encoder_layer, num_encoder_layers, encoder_norm,
+                cross_encoder_layer=encoder_layer,
+                num_layers=combine_params[cross_att_key]['num_encoder_layers'],
+                norm=nn.LayerNorm(d_embed) if combine_params[cross_att_key]['pre_norm'] else None,
                 return_intermediate=False)
-        #################################################
 
     def network_initialization(self, in_channels, out_channels, D):
         assert len(self.layers) == len(self.planes)
@@ -99,7 +116,6 @@ class MinkFPN(ResNetBase):
 
         self.relu = ME.MinkowskiReLU(inplace=True)
         
-#### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
     def batch_feat_size(self,x) -> List[int]:
         _, batch_feat_size = torch.unique(x[:,0], return_counts=True)
         return batch_feat_size.tolist()
@@ -141,14 +157,9 @@ class MinkFPN(ResNetBase):
         x_feats = torch.vstack(x_feats_list)
         # y_feats = torch.vstack(y_feats_list)
         
-        # x =  ME.SparseTensor(coordinates=x.C, features=x_feats)
-        # y =  ME.SparseTensor(coordinates=y.C, features=y_feats, coordinate_manager=x.coordinate_manager)
-        # x = x + y
         x = ME.SparseTensor(coordinates=x.C, features=x_feats)
-        # x.F = x_feats
-        
+
         return x
-#################################################
 
     def forward(self, x, y_c=None, y_f=None):
         # *** BOTTOM-UP PASS ***
@@ -160,27 +171,98 @@ class MinkFPN(ResNetBase):
         if self.num_top_down == self.num_bottom_up:
             feature_maps.append(x)
 
-        #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
-        if self.with_crosatt:
+        if self.with_cross_att:
             x = self.combine_cross_attention(x, y_c, y_f)
-        #################################################
+
+        if self.with_self_att:
+            tmp_num_attention_layers = self.num_attention_layers
+            pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+            layer_idx = self.num_attention_layers-tmp_num_attention_layers
+            x = self.self_attention_layers[layer_idx](x, pos_embeds)
+            tmp_num_attention_layers -= 1
         
         # BOTTOM-UP PASS
         for ndx, (conv, bn, block) in enumerate(zip(self.convs, self.bn, self.blocks)):
             x = conv(x)     # Decreases spatial resolution (conv stride=2)
             x = bn(x)
             x = self.relu(x)
-            x = block(x) # after here results differ each time
+            x = block(x)
             if self.num_bottom_up - 1 - self.num_top_down <= ndx < len(self.convs) - 1:
                 feature_maps.append(x)
+            if self.with_self_att and tmp_num_attention_layers > 0:
+                pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+                layer_idx = self.num_attention_layers-tmp_num_attention_layers
+                x = self.self_attention_layers[layer_idx](x, pos_embeds)
+                tmp_num_attention_layers -= 1
 
         assert len(feature_maps) == self.num_top_down
 
         x = self.conv1x1[0](x)
+        if self.with_self_att and tmp_num_attention_layers > 0:
+            pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+            layer_idx = self.num_attention_layers-tmp_num_attention_layers
+            x = self.self_attention_layers[layer_idx](x, pos_embeds)
+            tmp_num_attention_layers -= 1
 
         # TOP-DOWN PASS
         for ndx, tconv in enumerate(self.tconvs):
             x = tconv(x)        # Upsample using transposed convolution
             x = x + self.conv1x1[ndx+1](feature_maps[-ndx - 1])
+            if self.with_self_att and tmp_num_attention_layers > 0:
+                pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+                layer_idx = self.num_attention_layers-tmp_num_attention_layers
+                x = self.self_attention_layers[layer_idx](x, pos_embeds)
+                tmp_num_attention_layers -= 1
+
+        return x
+
+
+class MinkFPN_v1(MinkFPN):
+    def __init__(self, in_channels, out_channels, num_top_down=1, conv0_kernel_size=5, block=BasicBlock,
+                layers=(1, 1, 1), planes=(32, 64, 64), combine_params=None):
+        MinkFPN.__init__(self, 
+                         in_channels=in_channels, 
+                         out_channels=in_channels,
+                         num_top_down=num_top_down,
+                         conv0_kernel_size=conv0_kernel_size,
+                         block=block,
+                         layers=layers,
+                         planes=planes,
+                         combine_params={})
+
+    def forward(self, x, y_c=None, y_f=None):
+        # *** BOTTOM-UP PASS ***
+        # First bottom-up convolution is special (with bigger stride)
+        feature_maps = []
+        x = self.conv0(x)
+        x = self.bn0(x)
+        x = self.relu(x)
+        # if self.num_top_down == self.num_bottom_up:
+        #     feature_maps.append(x)
+
+        # if self.with_cross_att:
+        #     x = self.combine_cross_attention(x, y_c, y_f)
+
+        # if self.with_self_att:
+        #     pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+        #     x = self.self_attention(x, pos_embeds)
+        
+        # # BOTTOM-UP PASS
+        # for ndx, (conv, bn, block) in enumerate(zip(self.convs, self.bn, self.blocks)):
+        #     x = conv(x)     # Decreases spatial resolution (conv stride=2)
+        #     x = bn(x)
+        #     x = self.relu(x)
+        #     x = block(x) # after here results differ each time
+        #     if self.num_bottom_up - 1 - self.num_top_down <= ndx < len(self.convs) - 1:
+        #         feature_maps.append(x)
+
+        # assert len(feature_maps) == self.num_top_down
+
+        # x = self.conv1x1[0](x)
+
+        # # TOP-DOWN PASS
+        # for ndx, tconv in enumerate(self.tconvs):
+        #     x = tconv(x)        # Upsample using transposed convolution
+        #     x = x + self.conv1x1[ndx+1](feature_maps[-ndx - 1])
 
         return x
