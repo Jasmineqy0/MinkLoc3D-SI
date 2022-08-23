@@ -3,6 +3,8 @@
 # Modified by: Kamil Zywanowski, Adam Banaszczyk, Michal Nowicki (Poznan University of Technology 2021)
 
 #### ToDo: INCORPORATE POINTNETVLAD FEATURES ####
+import csv
+from tkinter import W
 from models.pointnet.PointNet import PointNetfeatv1
 #################################################
 
@@ -91,7 +93,12 @@ class MinkLoc(torch.nn.Module):
             self.pooling = MinkNetVladWrapper(feature_size=self.feature_size, output_dim=self.output_dim,
                                               cluster_size=64, gating=True)
 
-    def forward(self, batch):
+    def forward(self, batch, time_file=None):
+        if time_file:
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
+
         # Coords must be on CPU, features can be on GPU - see MinkowskiEngine documentation
         feats = batch['features']
         feats = feats.to('cuda')
@@ -100,21 +107,31 @@ class MinkLoc(torch.nn.Module):
 
         x = ME.SparseTensor(feats, coords)
         
+        pointnet_time = 0
         if self.with_pntnet or self.with_cross_att:
             PNT_x = batch['pnt_coords']
+            if time_file:
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
             PNT_feats = self.pointnet(PNT_x.unsqueeze(dim=1))
+            if time_file:
+                end.record()
+                torch.cuda.synchronize()
+                pointnet_time = start.elapsed_time(end)
                 
         if self.with_cross_att:
             PNT_x_list = [item for item in PNT_x]
             PNT_coords = ME.utils.batched_coordinates(PNT_x_list).to(PNT_x.device)
-            x = self.backbone(x, PNT_coords, PNT_feats.squeeze(dim=-1).view(-1, self.planes[0]))
+            assert type(self.backbone).__name__ == 'MinkFPN', 'backbone for cross attention should be MinkFPN'
+            x, attention_time = self.backbone(x, PNT_coords, PNT_feats.squeeze(dim=-1).view(-1, self.planes[0]), time_file=time_file)
         elif self.with_multi_att:
             coords_more = batch['coords_more']
             x_more = ME.SparseTensor(torch.ones((coords_more.shape[0],1)).to(coords_more.device), coords_more)
             x_more = self.small_backbone(x_more)
-            x = self.backbone(x, x_more.C, x_more.F)
+            x, attention_time = self.backbone(x, x_more.C, x_more.F, time_file)
         else:
-            x = self.backbone(x) 
+            x, attention_time = self.backbone(x, time_file) 
 
         # x is (num_points, n_features) tensor
         assert x.shape[1] == self.feature_size, 'Backbone output tensor has: {} channels. Expected: {}'.format(x.shape[1], self.feature_size)
@@ -126,7 +143,19 @@ class MinkLoc(torch.nn.Module):
         if self.with_pntnet: 
             y = self.pntnet_pooling(PNT_feats.view(-1, self.num_points, self.feature_size)).view(-1, self.feature_size)
             x = x + y
-                
+
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            total_time = start.elapsed_time(end)
+        else:
+            total_time = None
+        time = [total_time, pointnet_time] + attention_time
+        
+        with open(time_file, 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(time)
+
         return x
         
 

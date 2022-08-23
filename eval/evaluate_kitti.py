@@ -12,6 +12,7 @@ import argparse
 import torch
 import MinkowskiEngine as ME
 import tqdm
+import open3d as o3d
 
 import sys
 REPO_FOLDER = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -90,6 +91,19 @@ def evaluate_dataset(model, device, params, database_sets, query_sets):
              'average_similarity': average_similarity}
     return stats
 
+def downsample_point_cloud(xyz):
+	downsample_num = 4096
+	vox_sz = 0.3
+	pcd = o3d.geometry.PointCloud()
+	pcd.points = o3d.utility.Vector3dVector(xyz)
+	while np.asarray(pcd.points).shape[0] > downsample_num:
+		pcd = pcd.voxel_down_sample(vox_sz)
+		vox_sz += 0.01
+	
+	points = np.asarray(pcd.points)
+	points = np.concatenate([points, np.zeros((downsample_num-points.shape[0], 3))])
+
+	return points
 
 def load_pc(filename, params):
     # Load point cloud, does not apply any transform
@@ -106,6 +120,9 @@ def load_pc(filename, params):
         pc_s = to_spherical(pc, params.dataset_name)
     else:
         pc_s = pc
+
+    pc = downsample_point_cloud(pc)
+    pc_s = downsample_point_cloud(pc_s)
 
     pc = torch.tensor(pc, dtype=torch.float)
     pc_s = torch.tensor(pc_s, dtype=torch.float)

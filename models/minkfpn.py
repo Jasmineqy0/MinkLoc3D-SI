@@ -1,6 +1,7 @@
 # Author: Jacek Komorowski
 # Warsaw University of Technology
 
+from re import S
 import torch.nn as nn
 import torch
 from torchtyping import TensorType
@@ -40,9 +41,10 @@ class MinkFPN(ResNetBase):
         
         if self.with_self_att:
             self.num_attention_layers = combine_params['self_attention']['num_layers']
-            d_embed_list =  [ layer * [plane] for layer, plane in zip(layers, planes) ]
-            d_embed_list = [planes[0]] + [ item for list in d_embed_list for item in list ] + [self.lateral_dim] * (num_top_down+1)
-            self.pos_embed = PositionEmbeddingLearned(3, 3)
+            d_embed_list =  [ layer * [plane] for layer, plane in zip(layers, planes) ] 
+            # d_embed_list = [planes[0]] + [ item for list in d_embed_list for item in list ] + [self.lateral_dim] * (num_top_down+1)
+            d_embed_list = [ item for list in d_embed_list for item in list ] + [self.lateral_dim] * (num_top_down+1)
+            self.self_pos_embed = PositionEmbeddingLearned(3, 3)
             self.self_attention_layers = nn.ModuleList()
 
             for i in range(self.num_attention_layers):
@@ -124,7 +126,7 @@ class MinkFPN(ResNetBase):
         x = list(torch.split(x, seq))
         return x
     
-    def combine_cross_attention(self, x, y_c, y_f):
+    def combine_cross_attention(self, x, y_c, y_f, time_file=None):
         x_batch_feat_size = self.batch_feat_size(x.C)
         y_batch_feat_size = self.batch_feat_size(y_c)
         
@@ -141,12 +143,13 @@ class MinkFPN(ResNetBase):
         y_feats_padded, y_key_padding_mask, _ = pad_sequence(y_feats_un,
                                                                 require_padding_mask=True)
         
-        x_feats_cond, y_feats_cond = self.transformer_encoder(
+        x_feats_cond, y_feats_cond, cross_attention_time_dict = self.transformer_encoder(
             x_feats_padded, y_feats_padded,
             src_key_padding_mask=x_key_padding_mask,
             tgt_key_padding_mask=y_key_padding_mask,
             src_pos=x_pe_padded if self.transformer_encoder_has_pos_emb else None,
             tgt_pos=y_pe_padded if self.transformer_encoder_has_pos_emb else None,
+            time_file=time_file
         )
         
         x_feats_cond = torch.squeeze(x_feats_cond, dim=0)
@@ -159,9 +162,9 @@ class MinkFPN(ResNetBase):
         
         x = ME.SparseTensor(coordinates=x.C, features=x_feats)
 
-        return x
+        return x, cross_attention_time_dict
 
-    def forward(self, x, y_c=None, y_f=None):
+    def forward(self, x, y_c=None, y_f=None, time_file=None):
         # *** BOTTOM-UP PASS ***
         # First bottom-up convolution is special (with bigger stride)
         feature_maps = []
@@ -172,15 +175,22 @@ class MinkFPN(ResNetBase):
             feature_maps.append(x)
 
         if self.with_cross_att:
-            x = self.combine_cross_attention(x, y_c, y_f)
+            x, cross_attention_time_dict = self.combine_cross_attention(x, y_c, y_f,time_file)
+        else:
+            cross_attention_time_dict = {'linear_attention': 0, 'dot_prod': 0}
+
+        # if self.with_self_att:
+        #     tmp_num_attention_layers = self.num_attention_layers
+        #     pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
+        #     layer_idx = self.num_attention_layers-tmp_num_attention_layers
+        #     x = self.self_attention_layers[layer_idx](x, pos_embeds)
+        #     tmp_num_attention_layers -= 1
 
         if self.with_self_att:
             tmp_num_attention_layers = self.num_attention_layers
-            pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
-            layer_idx = self.num_attention_layers-tmp_num_attention_layers
-            x = self.self_attention_layers[layer_idx](x, pos_embeds)
-            tmp_num_attention_layers -= 1
         
+        self_attention_time = 0
+
         # BOTTOM-UP PASS
         for ndx, (conv, bn, block) in enumerate(zip(self.convs, self.bn, self.blocks)):
             x = conv(x)     # Decreases spatial resolution (conv stride=2)
@@ -190,18 +200,38 @@ class MinkFPN(ResNetBase):
             if self.num_bottom_up - 1 - self.num_top_down <= ndx < len(self.convs) - 1:
                 feature_maps.append(x)
             if self.with_self_att and tmp_num_attention_layers > 0:
-                pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+                pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
                 layer_idx = self.num_attention_layers-tmp_num_attention_layers
+
+                if time_file:
+                    start = torch.cuda.Event(enable_timing=True)
+                    end = torch.cuda.Event(enable_timing=True)
+                    start.record()
                 x = self.self_attention_layers[layer_idx](x, pos_embeds)
+                if time_file:
+                    end.record()
+                    torch.cuda.synchronize()
+                    self_attention_time += start.elapsed_time(end)
+
                 tmp_num_attention_layers -= 1
 
         assert len(feature_maps) == self.num_top_down
 
         x = self.conv1x1[0](x)
         if self.with_self_att and tmp_num_attention_layers > 0:
-            pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+            pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
             layer_idx = self.num_attention_layers-tmp_num_attention_layers
+
+            if time_file:
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
             x = self.self_attention_layers[layer_idx](x, pos_embeds)
+            if time_file:
+                end.record()
+                torch.cuda.synchronize()
+                self_attention_time += start.elapsed_time(end)
+
             tmp_num_attention_layers -= 1
 
         # TOP-DOWN PASS
@@ -209,12 +239,28 @@ class MinkFPN(ResNetBase):
             x = tconv(x)        # Upsample using transposed convolution
             x = x + self.conv1x1[ndx+1](feature_maps[-ndx - 1])
             if self.with_self_att and tmp_num_attention_layers > 0:
-                pos_embeds = self.pos_embed(x.C[:, 1:].to(torch.float))
+                pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
                 layer_idx = self.num_attention_layers-tmp_num_attention_layers
+
+                if time_file:
+                    start = torch.cuda.Event(enable_timing=True)
+                    end = torch.cuda.Event(enable_timing=True)
+                    start.record()
                 x = self.self_attention_layers[layer_idx](x, pos_embeds)
+                if time_file:
+                    end.record()
+                    torch.cuda.synchronize()
+                    self_attention_time += start.elapsed_time(end)
                 tmp_num_attention_layers -= 1
 
-        return x
+        # if self.with_cross_att:
+        #     # print (x.size())
+        #     # exit()
+        #     x = self.combine_cross_attention(x, y_c, y_f)
+
+        attention_time = [self_attention_time, cross_attention_time_dict['linear_attention'], cross_attention_time_dict['dot_prod']]
+
+        return x, attention_time
 
 
 class MinkFPN_v1(MinkFPN):

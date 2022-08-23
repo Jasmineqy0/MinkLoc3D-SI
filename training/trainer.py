@@ -80,9 +80,13 @@ def do_train(dataloaders, params: MinkLocParams, debug=False, visualize=False):
 
     # Move the model to the proper device before configuring the optimizer
     if torch.cuda.is_available():
+
         device = torch.device(f"cuda:{params.model_params.gpu}")
         torch.cuda.set_device(device)
         model.to(device)
+
+        ######### ddp
+
     else:
         device = "cpu"
 

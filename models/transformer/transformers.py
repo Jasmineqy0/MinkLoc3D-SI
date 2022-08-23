@@ -21,6 +21,7 @@ class TransformerCrossEncoder(nn.Module):
     def __init__(self, cross_encoder_layer, num_layers, norm=None, return_intermediate=False):
         super().__init__()
         self.layers = _get_clones(cross_encoder_layer, num_layers)
+        self.attention_type = cross_encoder_layer.attention_type
         self.num_layers = num_layers
         self.norm = norm
         self.return_intermediate = return_intermediate
@@ -31,15 +32,19 @@ class TransformerCrossEncoder(nn.Module):
                 src_key_padding_mask: Optional[Tensor] = None,
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 src_pos: Optional[Tensor] = None,
-                tgt_pos: Optional[Tensor] = None,):
+                tgt_pos: Optional[Tensor] = None,
+                time_file=None):
 
         src_intermediate, tgt_intermediate = [], []
-
+        
+        other_type = 'linear_attention' if self.attention_type == 'dot_prod' else 'dot_prod'
+        time_dict_global = {self.attention_type: 0, other_type: 0}
         for layer in self.layers:
-            src, tgt = layer(src, tgt, src_mask=src_mask, tgt_mask=tgt_mask,
-                             src_key_padding_mask=src_key_padding_mask,
-                             tgt_key_padding_mask=tgt_key_padding_mask,
-                             src_pos=src_pos, tgt_pos=tgt_pos)
+            src, tgt, cross_attention_time = layer(src, tgt, src_mask=src_mask, tgt_mask=tgt_mask,
+                                    src_key_padding_mask=src_key_padding_mask,
+                                    tgt_key_padding_mask=tgt_key_padding_mask,
+                                    src_pos=src_pos, tgt_pos=tgt_pos, time_file=time_file)
+            time_dict_global[self.attention_type] += cross_attention_time
             if self.return_intermediate:
                 src_intermediate.append(self.norm(src) if self.norm is not None else src)
                 tgt_intermediate.append(self.norm(tgt) if self.norm is not None else tgt)
@@ -57,7 +62,7 @@ class TransformerCrossEncoder(nn.Module):
         if self.return_intermediate:
             return torch.stack(src_intermediate), torch.stack(tgt_intermediate)
 
-        return src.unsqueeze(0), tgt.unsqueeze(0)
+        return src.unsqueeze(0), tgt.unsqueeze(0), time_dict_global
 
     def get_attentions(self):
         """For analysis: Retrieves the attention maps last computed by the individual layers."""
@@ -129,13 +134,18 @@ class TransformerCrossEncoderLayer(nn.Module):
                      src_key_padding_mask: Optional[Tensor] = None,
                      tgt_key_padding_mask: Optional[Tensor] = None,
                      src_pos: Optional[Tensor] = None,
-                     tgt_pos: Optional[Tensor] = None,):
+                     tgt_pos: Optional[Tensor] = None,
+                     time_file=None):
 
         assert src_mask is None and tgt_mask is None, 'Masking not implemented'
 
         # Self attention
         src_w_pos = self.with_pos_embed(src, src_pos)
         q = k = src_w_pos
+        if time_file:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
         if self.attention_type == 'dot_prod':
             src2, satt_weights_s = self.self_attn(q, k,
                                 value=src_w_pos if self.sa_val_has_pos_emb else src,
@@ -144,11 +154,21 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'source should have pos embeddings'
             src2 = self.self_attn(x=src_w_pos, input_mask=src_key_padding_mask.T)
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            cross_attention_time = start.elapsed_time(end)
+        else:
+            cross_attention_time = 0
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
         tgt_w_pos = self.with_pos_embed(tgt, tgt_pos)
         q = k = tgt_w_pos
+        if time_file:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
         if self.attention_type == 'dot_prod':
             tgt2, satt_weights_t = self.self_attn(q, k,
                                                 value=tgt_w_pos if self.sa_val_has_pos_emb else tgt,
@@ -157,6 +177,10 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'target should have pos embeddings'
             tgt2 = self.self_attn(x=tgt_w_pos, input_mask=tgt_key_padding_mask.T)
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            cross_attention_time +=  start.elapsed_time(end)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
@@ -164,6 +188,10 @@ class TransformerCrossEncoderLayer(nn.Module):
         src_w_pos = self.with_pos_embed(src, src_pos)
         tgt_w_pos = self.with_pos_embed(tgt, tgt_pos)
 
+        if time_file:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
         if self.attention_type == 'dot_prod':
             src2, xatt_weights_s = self.multihead_attn(query=self.with_pos_embed(src, src_pos),
                                                     key=tgt_w_pos,
@@ -183,7 +211,11 @@ class TransformerCrossEncoderLayer(nn.Module):
             tgt2 = self.multihead_attn(x=self.with_pos_embed(tgt, tgt_pos),
                                        input_mask=tgt_key_padding_mask.T,
                                        context=src_w_pos if self.ca_val_has_pos_emb else src2,
-                                       context_mask=src_key_padding_mask.T)  
+                                       context_mask=src_key_padding_mask.T) 
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            cross_attention_time +=  start.elapsed_time(end)
 
         src = self.norm2(src + self.dropout2(src2))
         tgt = self.norm2(tgt + self.dropout2(tgt2))
@@ -202,7 +234,7 @@ class TransformerCrossEncoderLayer(nn.Module):
             self.satt_weights = (satt_weights_s, satt_weights_t)
             self.xatt_weights = (xatt_weights_s, xatt_weights_t)
 
-        return src, tgt
+        return src, tgt, cross_attention_time
 
     def forward_pre(self, src, tgt,
                     src_mask: Optional[Tensor] = None,
@@ -210,7 +242,8 @@ class TransformerCrossEncoderLayer(nn.Module):
                     src_key_padding_mask: Optional[Tensor] = None,
                     tgt_key_padding_mask: Optional[Tensor] = None,
                     src_pos: Optional[Tensor] = None,
-                    tgt_pos: Optional[Tensor] = None,):
+                    tgt_pos: Optional[Tensor] = None,
+                    time_file=None):
 
         assert src_mask is None and tgt_mask is None, 'Masking not implemented'
 
@@ -218,6 +251,10 @@ class TransformerCrossEncoderLayer(nn.Module):
         src2 = self.norm1(src)
         src2_w_pos = self.with_pos_embed(src2, src_pos)
         q = k = src2_w_pos
+        if time_file:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
         if self.attention_type == 'dot_prod':
             src2, satt_weights_s = self.self_attn(q, k,
                                                 value=src2_w_pos if self.sa_val_has_pos_emb else src2,
@@ -226,11 +263,19 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'source should have pos embeddings'
             src2 = self.self_attn(x=src2_w_pos, input_mask=src_key_padding_mask.T)
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            cross_attention_time = start.elapsed_time(end)
         src = src + self.dropout1(src2)
 
         tgt2 = self.norm1(tgt)
         tgt2_w_pos = self.with_pos_embed(tgt2, tgt_pos)
         q = k = tgt2_w_pos
+        if time_file:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
         if self.attention_type == 'dot_prod':
             tgt2, satt_weights_t = self.self_attn(q, k,
                                                 value=tgt2_w_pos if self.sa_val_has_pos_emb else tgt2,
@@ -239,6 +284,11 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'target should have pos embeddings'
             tgt2 = self.self_attn(x=tgt2_w_pos, input_mask=tgt_key_padding_mask.T)
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            cross_attention_time +=  start.elapsed_time(end)
+
         tgt = tgt + self.dropout1(tgt2)
 
         # Cross attention
@@ -246,6 +296,10 @@ class TransformerCrossEncoderLayer(nn.Module):
         src_w_pos = self.with_pos_embed(src2, src_pos)
         tgt_w_pos = self.with_pos_embed(tgt2, tgt_pos)
 
+        if time_file:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
         if self.attention_type == 'dot_prod':
             src3, xatt_weights_s = self.multihead_attn(query=self.with_pos_embed(src2, src_pos),
                                                     key=tgt_w_pos,
@@ -266,6 +320,10 @@ class TransformerCrossEncoderLayer(nn.Module):
                                        input_mask=tgt_key_padding_mask.T,
                                        context=src_w_pos if self.ca_val_has_pos_emb else src2,
                                        context_mask=src_key_padding_mask.T)
+        if time_file:
+            end.record()
+            torch.cuda.synchronize()
+            cross_attention_time += start.elapsed_time(end)
 
         src = src + self.dropout2(src3)
         tgt = tgt + self.dropout2(tgt3)
@@ -284,7 +342,7 @@ class TransformerCrossEncoderLayer(nn.Module):
             self.satt_weights = (satt_weights_s, satt_weights_t)
             self.xatt_weights = (xatt_weights_s, xatt_weights_t)
 
-        return src, tgt
+        return src, tgt, cross_attention_time
 
     def forward(self, src, tgt,
                 src_mask: Optional[Tensor] = None,
@@ -292,13 +350,14 @@ class TransformerCrossEncoderLayer(nn.Module):
                 src_key_padding_mask: Optional[Tensor] = None,
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 src_pos: Optional[Tensor] = None,
-                tgt_pos: Optional[Tensor] = None,):
+                tgt_pos: Optional[Tensor] = None,
+                time_file=None):
 
         if self.normalize_before:
             return self.forward_pre(src, tgt, src_mask, tgt_mask,
-                                    src_key_padding_mask, tgt_key_padding_mask, src_pos, tgt_pos)
+                                    src_key_padding_mask, tgt_key_padding_mask, src_pos, tgt_pos, time_file=time_file)
         return self.forward_post(src, tgt, src_mask, tgt_mask,
-                                 src_key_padding_mask, tgt_key_padding_mask, src_pos, tgt_pos)
+                                 src_key_padding_mask, tgt_key_padding_mask, src_pos, tgt_pos, time_file=time_file)
 
 
 def _get_clones(module, N):

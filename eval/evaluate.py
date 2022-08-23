@@ -4,6 +4,7 @@
 
 # Evaluation code adapted from PointNetVlad code: https://github.com/mikacuy/pointnetvlad
 
+import csv
 from sklearn.neighbors import KDTree
 import numpy as np
 import pickle
@@ -13,7 +14,7 @@ import torch
 import MinkowskiEngine as ME
 import random
 import tqdm
-
+import open3d as o3d
 np.random.seed(0)
 random.seed(0)
 
@@ -24,7 +25,7 @@ from datasets.dataset_utils import to_spherical
 DEBUG = False
 
 
-def evaluate(model, device, params, log=False):
+def evaluate(model, device, params, log=False, time_file=None):
     # Run evaluation on all eval datasets
 
     if DEBUG:
@@ -49,13 +50,13 @@ def evaluate(model, device, params, log=False):
         with open(p, 'rb') as f:
             query_sets = pickle.load(f)
 
-        temp = evaluate_dataset(model, device, params, database_sets, query_sets, log=log)
+        temp = evaluate_dataset(model, device, params, database_sets, query_sets, log=log, time_file=time_file)
         stats[location_name] = temp
 
     return stats
 
 
-def evaluate_dataset(model, device, params, database_sets, query_sets, log=False):
+def evaluate_dataset(model, device, params, database_sets, query_sets, log=False, time_file=None):
     # Run evaluation on a single dataset
     recall = np.zeros(25)
     count = 0
@@ -69,11 +70,11 @@ def evaluate_dataset(model, device, params, database_sets, query_sets, log=False
 
     print(f"Extracting database sets embeddings")
     for set in tqdm.tqdm(database_sets):
-        database_embeddings.append(get_latent_vectors(model, set, device, params))
+        database_embeddings.append(get_latent_vectors(model, set, device, params, time_file=time_file))
 
     print(f"\nExtracting query sets embeddings")
     for set in tqdm.tqdm(query_sets):
-        query_embeddings.append(get_latent_vectors(model, set, device, params))
+        query_embeddings.append(get_latent_vectors(model, set, device, params, time_file=time_file))
 
     for i in range(len(query_sets)):
         for j in range(len(query_sets)):
@@ -94,6 +95,18 @@ def evaluate_dataset(model, device, params, database_sets, query_sets, log=False
              'average_similarity': average_similarity}
     return stats
 
+def pnv_preprocessing(xyz):
+    vox_sz = 0.3
+    while np.asarray(xyz).shape[0] > 4096:
+        xyz = downsample_point_cloud(xyz, vox_sz)
+        vox_sz += 0.01
+    return np.asarray(xyz)
+
+def downsample_point_cloud(xyz, voxel_size=0.05):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(xyz)
+    pcd_ds = pcd.voxel_down_sample(voxel_size)
+    return pcd_ds.points
 
 def load_pc(filename, params):
     # Load point cloud, does not apply any transform
@@ -115,7 +128,8 @@ def load_pc(filename, params):
         pc = pc[:, :3]
     # limit distance
     pc = pc[np.linalg.norm(pc[:, :3], axis=1) < params.max_distance]
-
+    if params.dataset_name == "USyd":
+        pc = pnv_preprocessing(pc)
     # convert to spherical coordinates in -S versions
     if params.model_params.version in ['MinkLoc3D-S', 'MinkLoc3D-SI']:
         pc_s = to_spherical(pc, params.dataset_name)
@@ -139,7 +153,7 @@ def load_pc(filename, params):
     # return pc, pc_s
     return pcs[0], pcs[1]
 
-def get_latent_vectors(model, set, device, params):
+def get_latent_vectors(model, set, device, params, time_file=None):
     # Adapted from original PointNetVLAD code
 
     """
@@ -194,7 +208,8 @@ def get_latent_vectors(model, set, device, params):
                 pnt_coords = x_s if include_pnt2s else x
                 batch['pnt_coords'] = pnt_coords.unsqueeze(dim=0).to(device)
 
-            embedding = model(batch)
+            embedding = model(batch, time_file=time_file)
+
             # embedding is (1, 256) tensor
             if params.normalize_embeddings:
                 embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)  # Normalize embeddings
@@ -334,8 +349,17 @@ if __name__ == "__main__":
 
     if torch.cuda.is_available():
         device = "cuda"
+        w_list = w.split('/')
+        logdir = '/'.join(w_list[:-1])
+        epoch = w_list[-1].split('.')[0]
+        time_file = os.path.join(logdir, f'{epoch}_time.csv')
+
+        with open(time_file, 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Total', 'Pointnet', 'Self-Attention', 'Cross-Attention-Linear', 'Cross-Attention-Dot'])
     else:
         device = "cpu"
+        time_file = None
     print('Device: {}'.format(device))
 
     model = model_factory(params)
@@ -346,5 +370,5 @@ if __name__ == "__main__":
 
     model.to(device)
 
-    stats = evaluate(model, device, params, args.log)
+    stats = evaluate(model, device, params, args.log, time_file=time_file)
     print_eval_stats(stats)

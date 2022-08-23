@@ -94,7 +94,7 @@ class ModelParams:
             
         if with_self_att:
             assert self_att_params.getint('num_layers') >= 1, 'num_layers must be greater than 1'
-            assert self_att_params.getint('num_layers') <= sum(self.layers)+2+self.num_top_down, 'num_layers should be <= sum(self.layers)+2+self.num_top_down'
+            assert self_att_params.getint('num_layers') <= sum(self.layers)+1+self.num_top_down, 'num_layers should be <= sum(self.layers)+2+self.num_top_down'
             self_att_combine_params = {'self_attention': {  'linear_att': self_att_params.getboolean('linear_att'),
                                                             'num_layers': self_att_params.getint('num_layers'),
                                                             'kernel_size': self_att_params.getint('kernel_size'),

@@ -18,6 +18,7 @@ import torchvision.transforms as transforms
 import psutil
 from bitarray import bitarray
 import tqdm
+import open3d as o3d
 
 DEBUG = False
 
@@ -187,12 +188,35 @@ class IntensityDataset(OxfordDataset):
 
         if not self.use_intensity:
             pc = pc[:, :3]
-
+            pc = self.downsample_point_cloud(pc)
+            # pnt_num = pc.shape[0]
+            # idx_rand = np.arange(pnt_num)
+            # idx_left = np.random.randint(0, pnt_num, 4096-pnt_num)
+            # idx_rand = np.concatenate([idx_rand, idx_left])
+            # sample = pc[idx_rand]
+            # sample.tofile(os.path.join(file_bin_path, file_name_bin))
+            # exit()
         # shuffle points in case they are randomly subsampled later
         np.random.shuffle(pc)
         pc = torch.tensor(pc, dtype=torch.float)
         return pc
 
+    def downsample_point_cloud(self, xyz):
+        downsample_num = 4096
+        vox_sz = 0.3
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(xyz)
+        while np.asarray(pcd.points).shape[0] > downsample_num:
+            pcd = pcd.voxel_down_sample(vox_sz)
+            vox_sz += 0.01
+
+        return np.asarray(pcd.points)
+
+    # def downsample_point_cloud(self, xyz, voxel_size=0.05):
+    #     pcd = o3d.geometry.PointCloud()
+    #     pcd.points = o3d.utility.Vector3dVector(xyz)
+    #     pcd_ds = pcd.voxel_down_sample(voxel_size)
+    #     return pcd_ds.points
 
 class TrainTransform:
     def __init__(self, aug_mode):
