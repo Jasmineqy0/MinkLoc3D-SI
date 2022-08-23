@@ -59,7 +59,7 @@ class ModelParams:
         
         combine_modules = ['POINTNET', 'SELF-ATTENTION', 'POINTNET-CROSS-ATTENTION', 'MULTI-CROSS-ATTENTION'] \
                           if self.backbone == 'MinkFPN' else ['POINTNET', 'FCGF']
-        combine_modules = {} if self.version not in ['MinkLoc3D-S', 'MinkLoc3D-SI'] else combine_modules
+        combine_modules = {} if self.version not in ['MinkLoc3D-S', 'MinkLoc3D-SI', 'MinkLoc3D'] else combine_modules
         self.get_combine_params(config, combine_modules)
         assert isinstance(self.combine_params, Dict)
             

@@ -10,3 +10,6 @@ generating_queries/*.log
 **/*.so
 **/cuda_ops/build
 .vscode
+eval/*.log
+eval/*.out
+eval/*.txt

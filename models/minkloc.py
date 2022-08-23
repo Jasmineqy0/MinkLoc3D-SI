@@ -94,7 +94,7 @@ class MinkLoc(torch.nn.Module):
                                               cluster_size=64, gating=True)
 
     def forward(self, batch, time_file=None):
-        if time_file:
+        if torch.cuda.is_available():
                 start = torch.cuda.Event(enable_timing=True)
                 end = torch.cuda.Event(enable_timing=True)
                 start.record()
@@ -110,12 +110,12 @@ class MinkLoc(torch.nn.Module):
         pointnet_time = 0
         if self.with_pntnet or self.with_cross_att:
             PNT_x = batch['pnt_coords']
-            if time_file:
+            if torch.cuda.is_available():
                 start = torch.cuda.Event(enable_timing=True)
                 end = torch.cuda.Event(enable_timing=True)
                 start.record()
             PNT_feats = self.pointnet(PNT_x.unsqueeze(dim=1))
-            if time_file:
+            if torch.cuda.is_available():
                 end.record()
                 torch.cuda.synchronize()
                 pointnet_time = start.elapsed_time(end)
@@ -144,17 +144,18 @@ class MinkLoc(torch.nn.Module):
             y = self.pntnet_pooling(PNT_feats.view(-1, self.num_points, self.feature_size)).view(-1, self.feature_size)
             x = x + y
 
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             total_time = start.elapsed_time(end)
         else:
-            total_time = None
+            total_time = 0
         time = [total_time, pointnet_time] + attention_time
         
-        with open(time_file, 'a') as f:
-            writer = csv.writer(f)
-            writer.writerow(time)
+        if time_file:
+            with open(time_file, 'a') as f:
+                writer = csv.writer(f)
+                writer.writerow(time)
 
         return x
         

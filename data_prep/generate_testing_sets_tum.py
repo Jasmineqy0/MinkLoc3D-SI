@@ -17,26 +17,29 @@ from position import pnt2utm
 
 def get_test_range(northing_shift, easting_shift):
 
-    z_center = -6.919999999999999
+    # z_center = -6.919999999999999
 
-    # corner points of street in the middle
-    l_ini = np.array([-39.516170501709,51.071258544922, z_center], dtype=np.float64)
-    l_end = np.array([-117.093261718750,-129.892379760742, z_center], dtype=np.float64)
-    w_ini = np.array([-138.423934936523,-26.235725402832, z_center], dtype=np.float64)
-    w_end = np.array([-47.159458160400,-66.141090393066, z_center], dtype=np.float64)
-    corner_points = [l_ini, l_end, w_ini, w_end]
+    # # corner points of street in the middle
+    # l_ini = np.array([-39.516170501709,51.071258544922, z_center], dtype=np.float64)
+    # l_end = np.array([-117.093261718750,-129.892379760742, z_center], dtype=np.float64)
+    # w_ini = np.array([-138.423934936523,-26.235725402832, z_center], dtype=np.float64)
+    # w_end = np.array([-47.159458160400,-66.141090393066, z_center], dtype=np.float64)
+    # corner_points = [l_ini, l_end, w_ini, w_end]
 
-    northing_vals, easting_vals = [], []
-    for point in corner_points:
-        northing, easting = pnt2utm(point)
-        northing_vals.append(northing)
-        easting_vals.append(easting)
+    # northing_vals, easting_vals = [], []
+    # for point in corner_points:
+    #     northing, easting = pnt2utm(point)
+    #     northing_vals.append(northing)
+    #     easting_vals.append(easting)
     
-    northing_min, northing_max = min(northing_vals), max(northing_vals)
-    easting_min, easting_max = min(easting_vals), max(easting_vals)
+    # northing_min, northing_max = min(northing_vals), max(northing_vals)
+    # easting_min, easting_max = min(easting_vals), max(easting_vals)
 
-    northing_range = [northing_min-northing_shift, northing_max+northing_shift]
-    easting_range = [easting_min-easting_shift, easting_max+easting_shift]
+    # northing_range = [northing_min-northing_shift, northing_max+northing_shift]
+    # easting_range = [easting_min-easting_shift, easting_max+easting_shift]
+
+    northing_range = [5335969.471942793, 5336110.305563628]
+    easting_range =  [690875.4143936138, 691050.9016333856]
 
     print('min for northing: ', northing_range[0], '\nmax for northing: ', northing_range[1])
     print('min for easting: ', easting_range[0], '\nmax for y: ', easting_range[1])
@@ -121,11 +124,11 @@ def construct_query_and_database_sets(tag_dirs, tag_filenames, northing_range, e
                     print('\n', tmp, database_sets[i][tmp[0]]['query'])
     print('\ncnt:', cnt)
 
-    output_to_file(database_sets, os.path.join(pickle_dir, f'{dataset_name}_evaluation_database.pickle'), protocol)
-    output_to_file(test_sets, os.path.join(pickle_dir, f'{dataset_name}_evaluation_query.pickle'), protocol)
+    output_to_file(test_sets, os.path.join(pickle_dir, f'tum_{dataset_name}_evaluation_query.pickle'), protocol)
+    output_to_file(database_sets, os.path.join(pickle_dir, f'tum_{dataset_name}_evaluation_database.pickle'), protocol)
 
 def generate_test_pickles(tag_dirs, tag_filenames,  northing_range, easting_range, protocol, pickle_dir, query_test_dist, dataset_name):
-    pickle_dir = pickle_dir + f'python{protocol}'
+    pickle_dir = pickle_dir + f'protocol{protocol}'
     if not os.path.exists(pickle_dir):
         pathlib.Path(pickle_dir).mkdir(parents=True, exist_ok=True)
 
@@ -156,10 +159,10 @@ if __name__ == '__main__':
     northing_shift, easting_shift = 52, 52
 
     dataset_name = f'frame_{frame_dist}m'
-    dataset_name = dataset_name + f'_range_{frame_range}m' if frame_range is not None else dataset_name
+    dataset_name = dataset_name + f'_range_{frame_range}m' if frame_range is not None else dataset_name + '_range_full'
     dataset_dir = f'/home/xiayan/testdir/datasets/{dataset_name}/'
-    inter_2018_dir = f'/home/xiayan/testdir/datasets/tum_prep/intermediate/frame_{frame_dist}m_range_{frame_range}m_2018'
-    inter_2016_dir = f'/home/xiayan/testdir/datasets/tum_prep/intermediate/frame_{frame_dist}m_range_{frame_range}m_2016'
+    inter_2018_dir = f'/home/xiayan/testdir/datasets/tum_prep/intermediate/{dataset_name}_2018'
+    inter_2016_dir = f'/home/xiayan/testdir/datasets/tum_prep/intermediate/{dataset_name}_2016'
     pickle_dir = f'/home/xiayan/testdir/datasets/{dataset_name}/pickles/'
 
     tag_dirs = [inter_2018_dir, inter_2016_dir]

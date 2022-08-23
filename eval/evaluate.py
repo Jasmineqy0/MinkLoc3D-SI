@@ -349,18 +349,18 @@ if __name__ == "__main__":
 
     if torch.cuda.is_available():
         device = "cuda"
-        w_list = w.split('/')
-        logdir = '/'.join(w_list[:-1])
-        epoch = w_list[-1].split('.')[0]
-        time_file = os.path.join(logdir, f'{epoch}_time.csv')
-
-        with open(time_file, 'w') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Total', 'Pointnet', 'Self-Attention', 'Cross-Attention-Linear', 'Cross-Attention-Dot'])
     else:
         device = "cpu"
-        time_file = None
     print('Device: {}'.format(device))
+
+    w_list = w.split('/')
+    logdir = '/'.join(w_list[:-1])
+    epoch = w_list[-1].split('.')[0]
+    time_file = os.path.join(logdir, f'{epoch}_time.csv')
+
+    with open(time_file, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Total', 'Pointnet', 'Self-Attention', 'Cross-Attention-Linear', 'Cross-Attention-Dot'])
 
     model = model_factory(params)
     if args.weights is not None:

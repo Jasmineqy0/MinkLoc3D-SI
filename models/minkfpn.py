@@ -203,12 +203,12 @@ class MinkFPN(ResNetBase):
                 pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
                 layer_idx = self.num_attention_layers-tmp_num_attention_layers
 
-                if time_file:
+                if torch.cuda.is_available():
                     start = torch.cuda.Event(enable_timing=True)
                     end = torch.cuda.Event(enable_timing=True)
                     start.record()
                 x = self.self_attention_layers[layer_idx](x, pos_embeds)
-                if time_file:
+                if torch.cuda.is_available():
                     end.record()
                     torch.cuda.synchronize()
                     self_attention_time += start.elapsed_time(end)
@@ -222,12 +222,12 @@ class MinkFPN(ResNetBase):
             pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
             layer_idx = self.num_attention_layers-tmp_num_attention_layers
 
-            if time_file:
+            if torch.cuda.is_available():
                 start = torch.cuda.Event(enable_timing=True)
                 end = torch.cuda.Event(enable_timing=True)
                 start.record()
             x = self.self_attention_layers[layer_idx](x, pos_embeds)
-            if time_file:
+            if torch.cuda.is_available():
                 end.record()
                 torch.cuda.synchronize()
                 self_attention_time += start.elapsed_time(end)
@@ -242,12 +242,12 @@ class MinkFPN(ResNetBase):
                 pos_embeds = self.self_pos_embed(x.C[:, 1:].to(torch.float))
                 layer_idx = self.num_attention_layers-tmp_num_attention_layers
 
-                if time_file:
+                if torch.cuda.is_available():
                     start = torch.cuda.Event(enable_timing=True)
                     end = torch.cuda.Event(enable_timing=True)
                     start.record()
                 x = self.self_attention_layers[layer_idx](x, pos_embeds)
-                if time_file:
+                if torch.cuda.is_available():
                     end.record()
                     torch.cuda.synchronize()
                     self_attention_time += start.elapsed_time(end)

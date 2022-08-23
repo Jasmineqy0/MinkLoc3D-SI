@@ -142,7 +142,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         # Self attention
         src_w_pos = self.with_pos_embed(src, src_pos)
         q = k = src_w_pos
-        if time_file:
+        if torch.cuda.is_available():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
@@ -154,7 +154,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'source should have pos embeddings'
             src2 = self.self_attn(x=src_w_pos, input_mask=src_key_padding_mask.T)
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             cross_attention_time = start.elapsed_time(end)
@@ -165,7 +165,7 @@ class TransformerCrossEncoderLayer(nn.Module):
 
         tgt_w_pos = self.with_pos_embed(tgt, tgt_pos)
         q = k = tgt_w_pos
-        if time_file:
+        if torch.cuda.is_available():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
@@ -177,7 +177,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'target should have pos embeddings'
             tgt2 = self.self_attn(x=tgt_w_pos, input_mask=tgt_key_padding_mask.T)
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             cross_attention_time +=  start.elapsed_time(end)
@@ -188,7 +188,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         src_w_pos = self.with_pos_embed(src, src_pos)
         tgt_w_pos = self.with_pos_embed(tgt, tgt_pos)
 
-        if time_file:
+        if torch.cuda.is_available():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
@@ -212,7 +212,7 @@ class TransformerCrossEncoderLayer(nn.Module):
                                        input_mask=tgt_key_padding_mask.T,
                                        context=src_w_pos if self.ca_val_has_pos_emb else src2,
                                        context_mask=src_key_padding_mask.T) 
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             cross_attention_time +=  start.elapsed_time(end)
@@ -251,7 +251,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         src2 = self.norm1(src)
         src2_w_pos = self.with_pos_embed(src2, src_pos)
         q = k = src2_w_pos
-        if time_file:
+        if torch.cuda.is_available():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
@@ -263,16 +263,18 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'source should have pos embeddings'
             src2 = self.self_attn(x=src2_w_pos, input_mask=src_key_padding_mask.T)
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             cross_attention_time = start.elapsed_time(end)
+        else:
+            cross_attention_time = 0
         src = src + self.dropout1(src2)
 
         tgt2 = self.norm1(tgt)
         tgt2_w_pos = self.with_pos_embed(tgt2, tgt_pos)
         q = k = tgt2_w_pos
-        if time_file:
+        if torch.cuda.is_available():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
@@ -284,7 +286,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         elif self.attention_type == 'linear_attention':
             assert self.sa_val_has_pos_emb, 'target should have pos embeddings'
             tgt2 = self.self_attn(x=tgt2_w_pos, input_mask=tgt_key_padding_mask.T)
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             cross_attention_time +=  start.elapsed_time(end)
@@ -296,7 +298,7 @@ class TransformerCrossEncoderLayer(nn.Module):
         src_w_pos = self.with_pos_embed(src2, src_pos)
         tgt_w_pos = self.with_pos_embed(tgt2, tgt_pos)
 
-        if time_file:
+        if torch.cuda.is_available():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
@@ -320,7 +322,7 @@ class TransformerCrossEncoderLayer(nn.Module):
                                        input_mask=tgt_key_padding_mask.T,
                                        context=src_w_pos if self.ca_val_has_pos_emb else src2,
                                        context_mask=src_key_padding_mask.T)
-        if time_file:
+        if torch.cuda.is_available():
             end.record()
             torch.cuda.synchronize()
             cross_attention_time += start.elapsed_time(end)
