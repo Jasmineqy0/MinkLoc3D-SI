@@ -1,0 +1,12 @@
+{
+  "pipeline":[
+      {
+          "type":"filters.smrf",
+          "cell": 1
+      },
+      {
+          "type":"filters.range",
+          "limits":"Classification[1:1]"
+      }
+  ]
+}
