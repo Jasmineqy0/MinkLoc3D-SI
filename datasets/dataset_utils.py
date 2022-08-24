@@ -139,7 +139,8 @@ def make_collate_fn(dataset: OxfordDataset, version, dataset_name, mink_quantiza
             
             batch_coords = batch
             batch = {'coords': coords, 'features': feats}
-            batch['coords_more'] = coords_more if version == 'MinkLoc3D-S' else None
+            if version == 'MinkLoc3D-S':
+                batch['coords_more'] = coords_more 
             
             if include_pnt:
                 pnt_coords = pnts if include_pnt2s else batch_coords
