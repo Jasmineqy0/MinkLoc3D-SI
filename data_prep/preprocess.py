@@ -115,15 +115,15 @@ def collect_frames_list(input_dir, output_dir, idx_file_stt, idx_file_end, frame
 
     return frames
 
-def collect_frames(frames_list, inter_frames_dir, year_prefix, range):
+def collect_frames(frames_list, inter_frames_dir, year_prefix, frame_range):
     for frame in tqdm(frames_list):
         file_name = Path(frame).stem
         output_file = os.path.join(inter_frames_dir, f'{year_prefix}_{file_name}.pcd')
 
         pcd = pypcd.PointCloud.from_path(frame)
         points = reshape_pcd(pcd)
-        if range is not None:
-            points = points[(points[:, 1] - points[:, 4]) < range]
+        if frame_range is not None:
+            points = points[(points[:, 1] - points[:, 4]) < frame_range]
         new_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(points[:, :3]))
         assert np.asarray(new_pcd.points).shape[-1] == 3
         o3d.io.write_point_cloud(output_file, new_pcd, write_ascii=True)
@@ -280,11 +280,11 @@ if __name__ == '__main__':
         collect_frames( frames_list=frames_2018_list,
                         inter_frames_dir=inter_2018_dir,
                         year_prefix='2018',
-                        range=frame_range)
+                        frame_range=frame_range)
         collect_frames( frames_list=frames_2016_list,
                         inter_frames_dir=inter_2016_dir,
                         year_prefix='2016',
-                        range=frame_range)
+                        frame_range=frame_range)
 
 
     #### execute script to remove ground ####
