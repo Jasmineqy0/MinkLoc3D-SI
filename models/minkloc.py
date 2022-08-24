@@ -92,6 +92,21 @@ class MinkLoc(torch.nn.Module):
         elif pooling == 'NetVlad_CG':
             self.pooling = MinkNetVladWrapper(feature_size=self.feature_size, output_dim=self.output_dim,
                                               cluster_size=64, gating=True)
+    
+    def write_time_file(self, time_file, time):
+        if time_file:
+            all_num = True
+            for element in time:
+                if type(element) not in [int, float]:
+                    all_num = False
+            if all_num:
+                time = [round(item, 5) for item in time]
+                with open(time_file, 'a') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(time)
+            else:
+                print(f'skipped time: {time} ')
+
 
     def forward(self, batch, time_file=None):
         if torch.cuda.is_available():
@@ -153,18 +168,7 @@ class MinkLoc(torch.nn.Module):
         time = [total_time, pointnet_time] + attention_time
 
         
-        if time_file:
-            all_num = True
-            for element in time:
-                if type(element) not in [int, float]:
-                    all_num = False
-            if all_num:
-                time = [round(item, 5) for item in time]
-                with open(time_file, 'a') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(time)
-            else:
-                print(f'skipped time: {time} ')
+        self.write_time_file(time_file, time)
 
         return x
         
