@@ -12,7 +12,7 @@ nohup python evaluate.py \
 --config=../config/config_usyd.txt \
 --model_config=/home/xiayan/testdir/MinkLoc3D-SI/config/model_config_self_cross_3.txt \
 --weights=/home/xiayan/testdir/MinkLoc3D-SI/weights/model_MinkFPNGeM_20220818_141758/epoch40.pth \
-> time_usyd_baseline_eval.log 2>&1
+> time_usyd_self_cross_3_eval.log 2>&1 &
 
 #########################
 

@@ -151,11 +151,20 @@ class MinkLoc(torch.nn.Module):
         else:
             total_time = 0
         time = [total_time, pointnet_time] + attention_time
+
         
         if time_file:
-            with open(time_file, 'a') as f:
-                writer = csv.writer(f)
-                writer.writerow(time)
+            all_num = True
+            for element in time:
+                if type(element) not in [int, float]:
+                    all_num = False
+            if all_num:
+                time = [round(item, 5) for item in time]
+                with open(time_file, 'a') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(time)
+            else:
+                print(f'skipped time: {time} ')
 
         return x
         
