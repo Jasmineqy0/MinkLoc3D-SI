@@ -16,9 +16,9 @@ nohup python train.py \
 
 ############### TUM ###############
 
-nohup python train.py \
---config=../config/config_tum.txt \
---model_config=../config/model_config.txt \
-> tum_5m_3ds_baseline.log 2>&1 &
+# nohup python train.py \
+# --config=../config/config_tum.txt \
+# --model_config=../config/model_config.txt \
+# > tum_5m_3ds_baseline.log 2>&1 &
 
 ######################################

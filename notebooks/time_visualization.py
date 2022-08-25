@@ -24,10 +24,11 @@ def get_avg_perf_dict(file):
 
         perfs = []
         for row in reader:
-            row = [int(item) for item in row]
+            row = [float(item) for item in row]
             perfs.append(row)
     perfs = np.asarray(perfs, dtype=float)
-    perfs = np.mean(perfs, axis=1)
+    perfs = np.mean(perfs, axis=0)
+    assert perfs.size == 5
 
     perf_dict = dict(zip(headers, perfs))
     return perf_dict
@@ -40,4 +41,4 @@ assert len(perf_files) > 0
 
 file = perf_files[0]
 
-perf_dict = get_avg_perf_dict('/home/xiayan/testdir/MinkLoc3D-SI/notebooks/test.csv')
+perf_dict = get_avg_perf_dict('/home/xiayan/testdir/MinkLoc3D-SI/weights/model_MinkFPNGeM_20220818_141758/epoch40_time.csv')
