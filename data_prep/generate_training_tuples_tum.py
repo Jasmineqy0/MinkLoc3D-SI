@@ -102,19 +102,19 @@ def construct_query_dict(df_centroids, filename, protocol, query_dist):
           
     output_to_file(queries, filename, protocol)
 
-def generate_training_pickles(df_train, df_test, query_train_dist,  protocol, pickle_dir, dataset_name):
+def generate_training_pickles(df_train, df_test, query_train_dist,  protocol, pickle_dir):
     pickle_dir = pickle_dir + f'protocol{protocol}'
 
     if not os.path.exists(pickle_dir):
         pathlib.Path(pickle_dir).mkdir(parents=True, exist_ok=True)
         
     construct_query_dict(df_centroids=df_train,
-                         filename=os.path.join(pickle_dir, f"tum_{dataset_name}_training_queries_baseline.pickle"),
+                         filename=os.path.join(pickle_dir, f"tum_training_queries_frame_5m.pickle"),
                          protocol=protocol,
                          query_dist=query_train_dist)
     
     construct_query_dict(df_centroids=df_test,
-                         filename=os.path.join(pickle_dir, f"tum_{dataset_name}_test_queries_baseline.pickle"),
+                         filename=os.path.join(pickle_dir, f"tum_testing_queries_frame_5m.pickle"),
                          protocol=protocol,
                          query_dist=query_train_dist)
 
@@ -154,14 +154,12 @@ if __name__ == '__main__':
                               df_test = df_test,
                               query_train_dist = query_train_dist,
                               protocol = 5,
-                              pickle_dir = pickle_dir,
-                              dataset_name = dataset_name)
+                              pickle_dir = pickle_dir)
 
     generate_training_pickles(df_train = df_train,
                               df_test = df_test,
                               query_train_dist = query_train_dist,
                               protocol = 4,
-                              pickle_dir = pickle_dir,
-                              dataset_name = dataset_name)
+                              pickle_dir = pickle_dir)
 
 

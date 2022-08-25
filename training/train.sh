@@ -13,3 +13,12 @@ nohup python train.py \
 > oxford_5m_3ds_baseline.log 2>&1 &
 
 ######################################
+
+############### TUM ###############
+
+nohup python train.py \
+--config=../config/config_tum.txt \
+--model_config=../config/model_config.txt \
+> tum_5m_3ds_baseline.log 2>&1 &
+
+######################################

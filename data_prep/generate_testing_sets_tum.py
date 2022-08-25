@@ -63,7 +63,7 @@ def output_to_file(output, filename, protocol):
         pickle.dump(output, handle, protocol=protocol)
     print("\nDone ", filename)
 
-def construct_query_and_database_sets(tag_dirs, tag_filenames, northing_range, easting_range, protocol, query_test_dist, pickle_dir, dataset_name):
+def construct_query_and_database_sets(tag_dirs, tag_filenames, northing_range, easting_range, protocol, query_test_dist, pickle_dir):
     database_trees, test_trees = [], []
     for folder, filename in zip(tag_dirs, tag_filenames):
         data_database, data_test = [], []
@@ -124,10 +124,10 @@ def construct_query_and_database_sets(tag_dirs, tag_filenames, northing_range, e
                     print('\n', tmp, database_sets[i][tmp[0]]['query'])
     print('\ncnt:', cnt)
 
-    output_to_file(test_sets, os.path.join(pickle_dir, f'tum_{dataset_name}_evaluation_query.pickle'), protocol)
-    output_to_file(database_sets, os.path.join(pickle_dir, f'tum_{dataset_name}_evaluation_database.pickle'), protocol)
+    output_to_file(test_sets, os.path.join(pickle_dir, f'tum_evaluation_frame_5m_query.pickle'), protocol)
+    output_to_file(database_sets, os.path.join(pickle_dir, f'tum_evaluation_frame_5m_database.pickle'), protocol)
 
-def generate_test_pickles(tag_dirs, tag_filenames,  northing_range, easting_range, protocol, pickle_dir, query_test_dist, dataset_name):
+def generate_test_pickles(tag_dirs, tag_filenames,  northing_range, easting_range, protocol, pickle_dir, query_test_dist):
     pickle_dir = pickle_dir + f'protocol{protocol}'
     if not os.path.exists(pickle_dir):
         pathlib.Path(pickle_dir).mkdir(parents=True, exist_ok=True)
@@ -138,8 +138,7 @@ def generate_test_pickles(tag_dirs, tag_filenames,  northing_range, easting_rang
                                       easting_range=easting_range,
                                       protocol=protocol,
                                       pickle_dir=pickle_dir,
-                                      query_test_dist=query_test_dist,
-                                      dataset_name=dataset_name)
+                                      query_test_dist=query_test_dist)
 
 #####################################
 
@@ -180,8 +179,7 @@ if __name__ == '__main__':
                           easting_range=easting_range,
                           protocol=5,
                           pickle_dir=pickle_dir,
-                          query_test_dist=query_test_dist,
-                          dataset_name=dataset_name)
+                          query_test_dist=query_test_dist)
 
     generate_test_pickles(tag_dirs=tag_dirs,
                           tag_filenames=tag_filenames,
@@ -189,5 +187,4 @@ if __name__ == '__main__':
                           easting_range=easting_range,
                           protocol=4,
                           pickle_dir=pickle_dir,
-                          query_test_dist=query_test_dist,
-                          dataset_name=dataset_name)
+                          query_test_dist=query_test_dist)
